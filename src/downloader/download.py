@@ -28,9 +28,10 @@ def _main(cache_dir, data_dir, start_date = None, end_date = None):
 
   if end_date is None:
     end_date = datetime.date.today()
-    # Choose this month only after the 15th
-    if end_date.day <= 14:
-      end_date -= datetime.timedelta(days=15)
+    # Choose next month after the 15th
+    if end_date.day >= 15:
+      end_date += datetime.timedelta(days=20)
+      end_date = end_date.replace(day=1)
   else :
     end_date = end_date.date()
 

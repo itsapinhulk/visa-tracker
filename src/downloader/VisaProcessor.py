@@ -33,3 +33,8 @@ def processDates(*, start_date: datetime.date, end_date: datetime.date,
   for data in all_data:
     if data.download() :
       time.sleep(0.1)
+
+  for data in all_data:
+    print(f"Processing data for {data.year}/{data.month}")
+    raw_data = data.extract()
+    # print('\n'.join([str(x) for x in raw_data]))
