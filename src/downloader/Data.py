@@ -26,7 +26,7 @@ class CountryCategory(enum.Enum):
     # Make sure we get exact match to not miscategorize anything
     if inpStr in ['india'] :
       return CountryCategory.INDIA
-    elif inpStr in ['china-mainland born', 'china- mainland born'] :
+    elif inpStr in ['china-mainland born', 'china- mainland born', 'china - mainland born'] :
       return CountryCategory.CHINA
     elif inpStr in ['mexico'] :
       return CountryCategory.MEXICO
@@ -196,11 +196,10 @@ class Data:
     if "final action dates" in section_header_text:
       final_action_date = True
 
-    all_rows = table.find_all('tr')
-
-    if 'dv chargeability areas' in all_rows[0].get_text().lower() :
-      # Diversity visa details, not applicable
+    if _IsDiversityVisaDetails(table):
       return []
+
+    all_rows = table.find_all('tr')
 
     headers = all_rows[0].find_all('td')
     visa_type_header = headers[0].get_text()
@@ -213,20 +212,61 @@ class Data:
       for idx, entry in enumerate(all_entries[1:]):
         country = all_countries[idx]
         date_str = entry.get_text().strip()
-        date_val = _ConvertPageDate()
+        date_val = self._ConvertPageDate(date_str)
         ret.append(DataEntry(year = self.year, month=self.month, country=country,
                              visa_type=visa_type, is_final_action_date=final_action_date, date=date_val))
 
     return ret
 
+  _MONTH_TO_INT = {
+    'JAN': 1,
+    'FEB': 2,
+    'MAR': 3,
+    'APR': 4,
+    'MAY': 5,
+    'JUN': 6,
+    'JUL': 7,
+    'AUG': 8,
+    'SEP': 9,
+    'OCT': 10,
+    'NOV': 11,
+    'DEC': 12,
+  }
+  def _ConvertPageDate(self, date_str) -> datetime.date:
+    date_str = date_str.lower()
+    if date_str == 'c' :
+      return datetime.date(year=self.year, month=self.month, day=1)
+    if date_str == 'u' :
+      return None
+
+    day = int(date_str[0:2])
+    month = self._MONTH_TO_INT[date_str[2:5].upper()]
+    year = 2000 + int(date_str[5:7])
+
+    return datetime.date(year=year, month=month, day=day)
+
+
 def _ValidateData(allData : list[DataEntry]):
   pass
-
-def _ConvertPageDate() -> datetime.date:
-  return None
 
 
 def _SanitizeTextData(inpStr : str) -> str:
   inpStr = inpStr.strip()
   inpStr = inpStr.lower()
   return re.sub(r'[ \n\xc2\xa0]+', ' ', inpStr)
+
+def _IsDiversityVisaDetails(table) -> bool:
+  all_rows = table.find_all('tr')
+
+  if 'dv chargeability areas' in all_rows[0].get_text().lower() :
+    return True
+
+  previous_paragraph = table.find_previous_sibling('p')
+  if previous_paragraph is not None:
+    previous_paragraph = previous_paragraph.get_text().lower()
+    if 'dv-2025 program' in previous_paragraph:
+      return True
+    if 'dv-2024 program' in previous_paragraph:
+      return True
+
+  return False
