@@ -15,6 +15,8 @@ class CountryCategory(enum.Enum):
   CHINA = 'China'
   MEXICO = 'Mexico'
   PHILIPPINES = 'Philippines'
+  EL_SALVADOR_GUATEMALA_HONDURAS = 'El Salvador/Guatemala/Honduras'
+  VIETNAM = 'Vietnam'
   REST_OF_WORLD = 'Rest-of-World'
 
   @staticmethod
@@ -32,7 +34,14 @@ class CountryCategory(enum.Enum):
       return CountryCategory.MEXICO
     elif inpStr in ['philippines'] :
       return CountryCategory.PHILIPPINES
-    elif inpStr in ['all chargeability areas except those listed'] :
+    elif inpStr in ['el salvador guatemala honduras'] :
+      return CountryCategory.EL_SALVADOR_GUATEMALA_HONDURAS
+    elif inpStr in ['vietnam'] :
+      return CountryCategory.VIETNAM
+    elif inpStr in [
+      'all chargeability areas except those listed',
+      'all chargeability areas except hose listed',
+    ] :
       return CountryCategory.REST_OF_WORLD
 
     raise Exception(f"Unknown country category {inpStr.encode()}")
@@ -49,6 +58,9 @@ class VisaCategory(enum.Enum):
   EB5_RURAL = 'EB5-Rural'
   EB5_HIGH_UNEMPLOYMENT = 'EB5-High-Unemployment'
   EB5_INFRASTRUCTURE = 'EB5-Infrastructure'
+  EB5_TARGETED_EMPLOYMENT = 'EB5-Targeted-Employment'
+  EB5_NON_REGIONAL_CENTER = 'EB5-Non-Regional-Center'
+  EB5_REGIONAL_CENTER = 'EB5-Regional-Center'
 
   # Family based visas
   F1 = 'F1'
@@ -99,6 +111,13 @@ class VisaCategory(enum.Enum):
       elif inpStr.startswith('5th set aside: infrastructure') \
           or inpStr.startswith('5th set aside: (infrastructure'):
         return VisaCategory.EB5_INFRASTRUCTURE
+      elif inpStr.startswith('5th targeted employmentareas') or \
+          inpStr.startswith('5th targeted employment areas'):
+        return VisaCategory.EB5_TARGETED_EMPLOYMENT
+      elif inpStr.startswith('5th non-regional center'):
+        return VisaCategory.EB5_NON_REGIONAL_CENTER
+      elif inpStr.startswith('5th regional center'):
+        return VisaCategory.EB5_REGIONAL_CENTER
 
     raise Exception(f"Unknown visa category {inpStr.encode()} with header {visa_type.encode()}")
 
@@ -178,7 +197,11 @@ class Data:
 
     all_data = []
     for table in extractor.find_all('table'):
-      all_data.extend(self._ExtractTableData(table))
+      try :
+        all_data.extend(self._ExtractTableData(table))
+      except Exception as e :
+        print(f"Failed to extract data from table:\n{table}")
+        raise e
 
     for data in all_data:
       _ValidateData(data)
@@ -196,7 +219,7 @@ class Data:
     if "final action dates" in section_header_text:
       final_action_date = True
 
-    if _IsDiversityVisaDetails(table):
+    if _IsSkippableTable(table):
       return []
 
     all_rows = table.find_all('tr')
@@ -239,9 +262,17 @@ class Data:
     if date_str == 'u' :
       return None
 
-    day = int(date_str[0:2])
+    if date_str == '2oct91':
+      date_str = '02oct91'
+
+    day_str = date_str[0:2]
+    day = int(day_str)
     month = self._MONTH_TO_INT[date_str[2:5].upper()]
-    year = 2000 + int(date_str[5:7])
+    year = int(date_str[5:7])
+    if year >= 80 :
+      year += 1900
+    else :
+      year += 2000
 
     return datetime.date(year=year, month=month, day=day)
 
@@ -255,18 +286,41 @@ def _SanitizeTextData(inpStr : str) -> str:
   inpStr = inpStr.lower()
   return re.sub(r'[ \n\xc2\xa0]+', ' ', inpStr)
 
-def _IsDiversityVisaDetails(table) -> bool:
+
+def _IsSkippableTable(table) -> bool:
   all_rows = table.find_all('tr')
+
+  if not all_rows :
+    return True
 
   if 'dv chargeability areas' in all_rows[0].get_text().lower() :
     return True
 
   previous_paragraph = table.find_previous_sibling('p')
+  if previous_paragraph is None and all_rows[0].get_text().strip() == '':
+    # Mystery empty table.
+    return True
+
   if previous_paragraph is not None:
     previous_paragraph = previous_paragraph.get_text().lower()
-    if 'dv-2025 program' in previous_paragraph:
-      return True
-    if 'dv-2024 program' in previous_paragraph:
-      return True
+    for name in [
+      'dv-2011',
+      'dv-2012',
+      'dv-2013',
+      'dv-2014',
+      'dv-2015',
+      'dv-2016',
+      'dv-2017',
+      'dv-2018',
+      'dv-2019',
+      'dv-2020',
+      'dv-2021',
+      'dv-2022',
+      'dv-2023',
+      'dv-2024',
+      'dv-2025',
+    ] :
+      if name in previous_paragraph:
+        return True
 
   return False

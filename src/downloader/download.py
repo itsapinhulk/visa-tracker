@@ -19,11 +19,13 @@ _SupportedDateInputs = click.DateTime(formats=['%Y-%m', '%Y%m'])
 def _main(cache_dir, data_dir, start_date = None, end_date = None):
   cache_dir = pathlib.Path(cache_dir).absolute()
   data_dir = pathlib.Path(data_dir).absolute()
+  EARLIEST_START_DATE = datetime.date(year=2001, month=12, day=1)
   if start_date is None:
-    start_date = datetime.date(year=2010, month=1)
+    start_date = EARLIEST_START_DATE
+  else :
+    start_date = start_date.date()
 
-  start_date = start_date.date()
-  if start_date < datetime.date(year=2001, month=12, day=1):
+  if start_date < EARLIEST_START_DATE:
     raise Exception("Start date must be at least 2001-12-December")
 
   if end_date is None:
