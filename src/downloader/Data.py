@@ -17,6 +17,7 @@ class CountryCategory(enum.Enum):
   PHILIPPINES = 'Philippines'
   EL_SALVADOR_GUATEMALA_HONDURAS = 'El Salvador/Guatemala/Honduras'
   VIETNAM = 'Vietnam'
+  DOMINICAN_REPUBLIC = 'Dominican Republic'
   REST_OF_WORLD = 'Rest-of-World'
 
   @staticmethod
@@ -26,21 +27,27 @@ class CountryCategory(enum.Enum):
     inpStr = re.sub(r'[ \n\xc2\xa0]+', ' ', inpStr)
 
     # Make sure we get exact match to not miscategorize anything
-    if inpStr in ['india'] :
+    if inpStr in ['india', 'in'] :
       return CountryCategory.INDIA
-    elif inpStr in ['china-mainland born', 'china- mainland born', 'china - mainland born'] :
+    elif inpStr in ['china', 'china-mainland born', 'china- mainland born', \
+                    'china - mainland born', 'ch'] :
       return CountryCategory.CHINA
-    elif inpStr in ['mexico'] :
+    elif inpStr in ['mexico', 'me'] :
       return CountryCategory.MEXICO
-    elif inpStr in ['philippines'] :
+    elif inpStr in ['philippines', 'philip-pines', 'phillipines', 'philipp-ines', 'ph'] :
       return CountryCategory.PHILIPPINES
     elif inpStr in ['el salvador guatemala honduras'] :
       return CountryCategory.EL_SALVADOR_GUATEMALA_HONDURAS
     elif inpStr in ['vietnam'] :
       return CountryCategory.VIETNAM
+    if inpStr in ['dominican republic'] :
+      return CountryCategory.DOMINICAN_REPUBLIC
     elif inpStr in [
       'all chargeability areas except those listed',
       'all chargeability areas except hose listed',
+      'all chargability area except those listed',
+      'all charge- ability areas except those listed',
+      'all charge ability areas except those listed',
     ] :
       return CountryCategory.REST_OF_WORLD
 
@@ -52,8 +59,11 @@ class VisaCategory(enum.Enum):
   EB2 = 'EB2'
   EB3 = 'EB3'
   EB_OTHER = 'EB-Other'
+  EB_SCHEDULE_A = 'EB-Schedule-A'
   EB4 = 'EB4'
+  EB5 = 'EB5'
   EB_RELIGIOUS = 'EB-Religious'
+  EB_IRAQI_AFGHANI_TRANSLATORS = 'EB-Iraqi-Afghani-Translators'
   EB5_UNRESERVED = 'EB5-Unreserved'
   EB5_RURAL = 'EB5-Rural'
   EB5_HIGH_UNEMPLOYMENT = 'EB5-High-Unemployment'
@@ -61,6 +71,7 @@ class VisaCategory(enum.Enum):
   EB5_TARGETED_EMPLOYMENT = 'EB5-Targeted-Employment'
   EB5_NON_REGIONAL_CENTER = 'EB5-Non-Regional-Center'
   EB5_REGIONAL_CENTER = 'EB5-Regional-Center'
+  EB5_PILOT_PROGRAMS = 'EB5-Pilot-Programs'
 
   # Family based visas
   F1 = 'F1'
@@ -75,31 +86,38 @@ class VisaCategory(enum.Enum):
 
     visa_type = _SanitizeTextData(visa_type)
 
-    if visa_type in ['family- sponsored']:
-      if inpStr in ['f1']:
+    if visa_type in ['family- sponsored', 'family']:
+      if inpStr in ['f1', '1st']:
         return VisaCategory.F1
-      elif inpStr in ['f2a']:
+      elif inpStr in ['f2a', '2a*', '2a', 'f2a*']:
         return VisaCategory.F2A
-      elif inpStr in ['f2b']:
+      elif inpStr in ['f2b', '2b']:
         return VisaCategory.F2B
-      elif inpStr in ['f3']:
+      elif inpStr in ['f3', '3rd']:
         return VisaCategory.F3
-      elif inpStr in ['f4']:
+      elif inpStr in ['f4', '4th', '4rd']:
         return VisaCategory.F4
 
-    elif visa_type in ['employment- based']:
+    elif visa_type in ['employment- based', 'employment-based', 'employment - based',
+                       'employment -based', 'employment based']:
       if inpStr in ['1st']:
         return VisaCategory.EB1
       elif inpStr in ['2nd']:
         return VisaCategory.EB2
       elif inpStr in ['3rd']:
         return VisaCategory.EB3
-      elif inpStr in ['other workers']:
+      elif inpStr in ['schedule a workers']:
+        return VisaCategory.EB_SCHEDULE_A
+      elif inpStr in ['other workers', 'other worker', 'other workers*']:
         return VisaCategory.EB_OTHER
       elif inpStr in ['4th']:
         return VisaCategory.EB4
-      elif inpStr in ['certain religious workers']:
+      elif inpStr in ['5th']:
+        return VisaCategory.EB5
+      elif inpStr in ['certain religious workers', 'certain religiuos workers']:
         return VisaCategory.EB_RELIGIOUS
+      elif inpStr in ['iraqi & afghani translators'] :
+        return VisaCategory.EB_IRAQI_AFGHANI_TRANSLATORS
       elif inpStr.startswith('5th unreserved'):
         return VisaCategory.EB5_UNRESERVED
       elif inpStr.startswith('5th set aside: rural') \
@@ -112,12 +130,18 @@ class VisaCategory(enum.Enum):
           or inpStr.startswith('5th set aside: (infrastructure'):
         return VisaCategory.EB5_INFRASTRUCTURE
       elif inpStr.startswith('5th targeted employmentareas') or \
+          inpStr.startswith('targeted employment areas') or \
+          inpStr.startswith('targeted employ- ment areas') or \
+          inpStr.startswith('targeted employ-ment areas') or \
           inpStr.startswith('5th targeted employment areas'):
         return VisaCategory.EB5_TARGETED_EMPLOYMENT
       elif inpStr.startswith('5th non-regional center'):
         return VisaCategory.EB5_NON_REGIONAL_CENTER
       elif inpStr.startswith('5th regional center'):
         return VisaCategory.EB5_REGIONAL_CENTER
+      elif inpStr.startswith('5th pilot progams') or \
+          inpStr.startswith('5th pilot programs'):
+        return VisaCategory.EB5_PILOT_PROGRAMS
 
     raise Exception(f"Unknown visa category {inpStr.encode()} with header {visa_type.encode()}")
 
@@ -214,22 +238,46 @@ class Data:
     container = table.find_parent('div', **{'class': 'section'})
     section_header = container.find_previous_sibling('div', **{'class': 'section'})
 
-    section_header_text = section_header.get_text().lower()
     final_action_date = False
-    if "final action dates" in section_header_text:
-      final_action_date = True
+    if section_header is not None:
+      section_header_text = section_header.get_text().lower()
+      if "final action dates" in section_header_text:
+        final_action_date = True
 
     if _IsSkippableTable(table):
       return []
 
     all_rows = table.find_all('tr')
+    data_start_row = 1
 
-    headers = all_rows[0].find_all('td')
+    if (self.year < 2003) or ((self.year == 2003) and (self.month <= 9)) \
+        or (self.year == 2005 and self.month == 11) or \
+        (self.year == 2007 and self.month == 2 and all_rows[0].find_all('td')[0].get_text().strip() == ''):
+      # 2007 has one odd table with extra space.
+      if len(all_rows) < 2:
+        # More weird tables
+        return []
+
+      first_row = all_rows[0].find_all(['th', 'td'])
+      second_row = all_rows[1].find_all(['th', 'td'])
+      headers = [second_row[0]] + first_row[1:]
+      data_start_row = 2
+
+    else :
+      if (self.year == 2004 and self.month in [2, 3, 4]) :
+        # Weird extra row in table
+        all_rows = all_rows[1:]
+      headers = all_rows[0].find_all(['th', 'td'])
+
     visa_type_header = headers[0].get_text()
     all_countries = [CountryCategory.get(x.get_text()) for x in headers[1:]]
 
-    for row in all_rows[1:]:
-      all_entries = row.find_all('td')
+    for row in all_rows[data_start_row:]:
+      if row.get_text().lower().strip() == '':
+        # Weird empty row
+        continue
+
+      all_entries = row.find_all(['td', 'th'])
       visa_type = VisaCategory.get(all_entries[0].get_text(), visa_type_header)
 
       for idx, entry in enumerate(all_entries[1:]):
@@ -255,15 +303,20 @@ class Data:
     'NOV': 11,
     'DEC': 12,
   }
-  def _ConvertPageDate(self, date_str) -> datetime.date:
+  def _ConvertPageDate(self, date_str) -> datetime.date | None:
     date_str = date_str.lower()
     if date_str == 'c' :
       return datetime.date(year=self.year, month=self.month, day=1)
     if date_str == 'u' :
       return None
+    if date_str == '' :
+      return None
 
     if date_str == '2oct91':
       date_str = '02oct91'
+
+    if date_str == '8may97' :
+      date_str = '08may97'
 
     day_str = date_str[0:2]
     day = int(day_str)
@@ -293,8 +346,18 @@ def _IsSkippableTable(table) -> bool:
   if not all_rows :
     return True
 
-  if 'dv chargeability areas' in all_rows[0].get_text().lower() :
-    return True
+  first_row_text = all_rows[0].get_text().lower()
+  for name in [
+    'dv chargeability areas',
+    'africa',
+    'asia',
+    'europe',
+    'north america',
+    'oceania',
+    'south america, central america, and the caribbean',
+  ] :
+    if name in first_row_text :
+      return True
 
   previous_paragraph = table.find_previous_sibling('p')
   if previous_paragraph is None and all_rows[0].get_text().strip() == '':
@@ -302,8 +365,16 @@ def _IsSkippableTable(table) -> bool:
     return True
 
   if previous_paragraph is not None:
-    previous_paragraph = previous_paragraph.get_text().lower()
+    previous_paragraph = previous_paragraph.get_text().lower().strip()
     for name in [
+      'dv-2003',
+      'dv-2004',
+      'dv-2005',
+      'dv-2006',
+      'dv-2007',
+      'dv-2008',
+      'dv-2009',
+      'dv-2010',
       'dv-2011',
       'dv-2012',
       'dv-2013',
@@ -319,8 +390,24 @@ def _IsSkippableTable(table) -> bool:
       'dv-2023',
       'dv-2024',
       'dv-2025',
+      'all dv chargeability areas',
+      'ina 202',
+      'possible cut-off date actions based on demand',
+      'worldwide dates:',
+      'employment third:',
     ] :
       if name in previous_paragraph:
         return True
 
+    # Other ways to detect DV visa
+    for name in [
+      'africa',
+      'asia',
+      'europe',
+      'oceania',
+      'south america, central america, and the caribbean',
+      'north america \nbahamas, the 12',
+    ] :
+      if name == previous_paragraph:
+        return True
   return False
