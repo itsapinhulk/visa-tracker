@@ -44,7 +44,7 @@ def processDates(*, start_date: datetime.date, end_date: datetime.date,
     yearDir.mkdir(parents=True, exist_ok=True)
     filePath = yearDir / f"{data.month:02d}_{Data.MONTH_TO_STR[data.month]}.csv"
     with open(filePath, 'w', newline='') as csvfile:
-      writer = csv.DictWriter(csvfile, delimiter=',',
+      writer = csv.DictWriter(csvfile, delimiter=',', lineterminator='\n',
                               quotechar='|', quoting=csv.QUOTE_MINIMAL,
                               fieldnames=field_names)
       writer.writeheader()
