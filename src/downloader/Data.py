@@ -160,7 +160,7 @@ class Data:
     self.month = target.month
     self.path = path
 
-  _MONTH_TO_STR = {
+  MONTH_TO_STR = {
     1: "january",
     2: "february",
     3: "march",
@@ -175,7 +175,7 @@ class Data:
     12: "december",
   }
   def _getMonthStr(self):
-    return self._MONTH_TO_STR[self.month]
+    return self.MONTH_TO_STR[self.month]
 
   def _getWebPage(self):
 

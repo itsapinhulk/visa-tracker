@@ -1,0 +1,82 @@
+year,month,country,category,final_action_date,filing_date
+2019,2,Rest-of-World,F1,2011-09-22,2012-04-08
+2019,2,Rest-of-World,F2A,2016-12-01,2017-12-01
+2019,2,Rest-of-World,F2B,2012-05-01,2014-06-22
+2019,2,Rest-of-World,F3,2006-08-22,2007-02-01
+2019,2,Rest-of-World,F4,2005-06-22,2006-06-15
+2019,2,Rest-of-World,EB1,2017-12-01,2018-06-01
+2019,2,Rest-of-World,EB2,2019-02-01,2019-02-01
+2019,2,Rest-of-World,EB3,2019-02-01,2019-02-01
+2019,2,Rest-of-World,EB-Other,2019-02-01,2019-02-01
+2019,2,Rest-of-World,EB4,2019-02-01,2019-02-01
+2019,2,Rest-of-World,EB-Religious,,2019-02-01
+2019,2,Rest-of-World,EB5-Non-Regional-Center,2019-02-01,2019-02-01
+2019,2,Rest-of-World,EB5-Regional-Center,,2019-02-01
+2019,2,China,F1,2011-09-22,2012-04-08
+2019,2,China,F2A,2016-12-01,2017-12-01
+2019,2,China,F2B,2012-05-01,2014-06-22
+2019,2,China,F3,2006-08-22,2007-02-01
+2019,2,China,F4,2005-06-22,2006-06-15
+2019,2,China,EB1,2017-02-08,2017-10-01
+2019,2,China,EB2,2015-10-01,2015-11-01
+2019,2,China,EB3,2015-07-01,2016-01-01
+2019,2,China,EB-Other,2007-08-01,2008-06-01
+2019,2,China,EB4,2019-02-01,2019-02-01
+2019,2,China,EB-Religious,,2019-02-01
+2019,2,China,EB5-Non-Regional-Center,2014-09-01,2014-10-01
+2019,2,China,EB5-Regional-Center,,2014-10-01
+2019,2,India,F1,2011-09-22,2012-04-08
+2019,2,India,F2A,2016-12-01,2017-12-01
+2019,2,India,F2B,2012-05-01,2014-06-22
+2019,2,India,F3,2006-08-22,2007-02-01
+2019,2,India,F4,2004-06-22,2005-02-01
+2019,2,India,EB1,2017-02-08,2017-10-01
+2019,2,India,EB2,2009-04-06,2009-05-22
+2019,2,India,EB3,2009-04-22,2010-04-01
+2019,2,India,EB-Other,2009-04-22,2010-04-01
+2019,2,India,EB4,2019-02-01,2019-02-01
+2019,2,India,EB-Religious,,2019-02-01
+2019,2,India,EB5-Non-Regional-Center,2019-02-01,2019-02-01
+2019,2,India,EB5-Regional-Center,,2019-02-01
+2019,2,Mexico,F1,1997-08-01,1999-09-22
+2019,2,Mexico,F2A,2016-11-15,2017-12-01
+2019,2,Mexico,F2B,1997-07-22,1997-10-08
+2019,2,Mexico,F3,1995-12-22,2000-06-08
+2019,2,Mexico,F4,1998-02-08,1998-11-01
+2019,2,Mexico,EB1,2017-12-01,2018-06-01
+2019,2,Mexico,EB2,2019-02-01,2019-02-01
+2019,2,Mexico,EB3,2019-02-01,2019-02-01
+2019,2,Mexico,EB-Other,2019-02-01,2019-02-01
+2019,2,Mexico,EB4,2017-09-01,2019-02-01
+2019,2,Mexico,EB-Religious,,2019-02-01
+2019,2,Mexico,EB5-Non-Regional-Center,2019-02-01,2019-02-01
+2019,2,Mexico,EB5-Regional-Center,,2019-02-01
+2019,2,Philippines,F1,2007-03-15,2008-03-15
+2019,2,Philippines,F2A,2016-12-01,2017-12-01
+2019,2,Philippines,F2B,2007-07-01,2008-01-15
+2019,2,Philippines,F3,1995-08-22,1997-08-01
+2019,2,Philippines,F4,1995-10-01,1997-12-08
+2019,2,Philippines,EB1,2017-12-01,2018-06-01
+2019,2,Philippines,EB2,2019-02-01,2019-02-01
+2019,2,Philippines,EB3,2017-08-01,2017-10-01
+2019,2,Philippines,EB-Other,2017-08-01,2017-10-01
+2019,2,Philippines,EB4,2019-02-01,2019-02-01
+2019,2,Philippines,EB-Religious,,2019-02-01
+2019,2,Philippines,EB5-Non-Regional-Center,2019-02-01,2019-02-01
+2019,2,Philippines,EB5-Regional-Center,,2019-02-01
+2019,2,El Salvador/Guatemala/Honduras,EB1,2017-12-01,2018-06-01
+2019,2,El Salvador/Guatemala/Honduras,EB2,2019-02-01,2019-02-01
+2019,2,El Salvador/Guatemala/Honduras,EB3,2019-02-01,2019-02-01
+2019,2,El Salvador/Guatemala/Honduras,EB-Other,2019-02-01,2019-02-01
+2019,2,El Salvador/Guatemala/Honduras,EB4,2016-03-01,2016-05-01
+2019,2,El Salvador/Guatemala/Honduras,EB-Religious,,2016-05-01
+2019,2,El Salvador/Guatemala/Honduras,EB5-Non-Regional-Center,2019-02-01,2019-02-01
+2019,2,El Salvador/Guatemala/Honduras,EB5-Regional-Center,,2019-02-01
+2019,2,Vietnam,EB1,2017-12-01,
+2019,2,Vietnam,EB2,2019-02-01,
+2019,2,Vietnam,EB3,2019-02-01,
+2019,2,Vietnam,EB-Other,2019-02-01,
+2019,2,Vietnam,EB4,2019-02-01,
+2019,2,Vietnam,EB-Religious,,
+2019,2,Vietnam,EB5-Non-Regional-Center,2016-06-15,
+2019,2,Vietnam,EB5-Regional-Center,,
