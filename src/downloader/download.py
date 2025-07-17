@@ -30,7 +30,7 @@ def _main(cache_dir, data_dir, start_date = None, end_date = None):
     end_date = end_date.date()
 
   if start_date is None:
-    # Set it to one month before end date
+    # Set it to one month before the end date
     start_date = end_date
     start_date = start_date.replace(day=1)
     start_date -= datetime.timedelta(days=2)
