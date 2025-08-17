@@ -3,7 +3,7 @@ import datetime
 import pathlib
 import time
 
-from .Data import Data, DataEntry
+from .Data import Data, DataEntry, VisaCategory, CountryCategory
 
 
 def processDates(*, start_date: datetime.date, end_date: datetime.date,
@@ -75,6 +75,14 @@ def _convertToCsv(all_entries: list[DataEntry]):
       }
 
     category_entry = values_l1[entry.year][entry.month][entry.country][entry.visa_type]
+
+    if (entry.year == 2001 or entry.year == 2002) and \
+            (entry.month == 12 or entry.month <= 2) and \
+            (entry.visa_type == VisaCategory.F4) and \
+            (entry.country == CountryCategory.PHILIPPINES) and \
+            (entry.date >= datetime.date(2079, 10, 31)):
+        # Very wrong dates for this combination
+        entry.date = None
     if entry.is_final_action_date :
       category_entry['final_action_date'] = entry.date
     else :
