@@ -28,6 +28,16 @@ enum DateType {
     FinalActionDate, FilingDate
 }
 
+function dateTypeToString(dateType: DateType) {
+    if (dateType === DateType.FinalActionDate) {
+        return "Final Date";
+    } else if (dateType === DateType.FilingDate) {
+        return "Filing Date";
+    } else {
+        return "Unhandled Date Type: " + dateType;
+    }
+}
+
 function createChart(chartList : ChartEntry[], minDate : Date, maxDate: Date,
                      dateType: DateType) {
     const allDates = allMonths(minDate, maxDate);
@@ -77,6 +87,9 @@ function createChart(chartList : ChartEntry[], minDate : Date, maxDate: Date,
         tooltip: {
             x: {
                 format: "yyyy MMM",
+                formatter: function (value) {
+                    return dateTypeToString(dateType) + " for " + displayDate(new Date(value), false)
+                }
             },
             shared: true,
             fixed : {
@@ -217,7 +230,7 @@ function Chart({data}: { data: MonthData[] }) {
             <Grid size={4}>
                 <Button onClick={toggleDateType}
                         variant="contained">
-                    {dateType === DateType.FinalActionDate ? "Final Date" : "Filing Date" }
+                    {dateTypeToString(dateType)}
                 </Button>
             </Grid>
         </Grid>
