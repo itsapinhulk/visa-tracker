@@ -1,0 +1,25 @@
+name: Update Data
+
+on: 
+ schedule:
+    # Run every day at fixed time
+    - cron: "16 53 * * *"
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash -el {0}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: conda-incubator/setup-miniconda@v3
+        with:
+          environment-file: requirements.yml
+          auto-activate-base: false
+      - name: Script
+        run: |
+          conda info
+          conda list
+          ./update_data.sh
+          git status
