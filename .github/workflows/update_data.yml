@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   pull-requests: write
 
 jobs:
@@ -20,8 +20,6 @@ jobs:
         shell: bash -el {0}
     steps:
       - uses: actions/checkout@v4
-        with:          
-          ssh-key: ${{ secrets.DATA_UPDATE_PRIVATE_KEY }}
       - uses: conda-incubator/setup-miniconda@v3
         with:
           environment-file: requirements.txt
@@ -34,7 +32,6 @@ jobs:
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v7
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
           commit-message: Update CSV data
           title: Update CSV
           branch: auto/update-data
