@@ -13,4 +13,5 @@ export default defineConfig({
     optimizeDeps: {
         force: true,
     },
+    base: "/visa-tracker/",
 });
