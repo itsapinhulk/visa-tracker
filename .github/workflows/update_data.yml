@@ -35,3 +35,4 @@ jobs:
           commit-message: Update CSV data
           title: Update CSV
           branch: auto/update-data
+          delete-branch: true
