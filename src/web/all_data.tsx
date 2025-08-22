@@ -20,6 +20,20 @@ function convertToDate(dateStr: string) {
     return new Date(rawDate.getTime() + 400 * 60000);
 }
 
+export function displayDate(value: Date | unknown, withDay : boolean) {
+    if (!value) {
+        return ""
+    }
+    const year = value.getFullYear();
+    const month = value.toLocaleString('default', {month: 'short'});
+    const day = value.toLocaleString('default', {day: '2-digit'});
+    if (withDay) {
+        return `${year} ${month} ${day}`;
+    } else {
+        return `${year} ${month}`;
+    }
+};
+
 // Convert all CSV files into a single data structure.
 // Hopefully, all this is being done during the packing process.
 for (const path in all_csv_files) {
@@ -43,4 +57,18 @@ for (const path in all_csv_files) {
 const Data = [... tempData];
 const AllCountries = [... new Set(Data.map(x => x.country))];
 const AllVisaTypes = [... new Set(Data.map(x => x.category))];
-export {Data, AllCountries, AllVisaTypes};
+let tempMinDate = null;
+let tempMaxDate = null;
+Data.forEach((entry) => {
+   if (tempMinDate === null || entry.date < tempMinDate) {
+       tempMinDate = entry.date;
+   }
+   if (tempMaxDate === null || entry.date > tempMaxDate) {
+       tempMaxDate = entry.date;
+   }
+})
+
+const MinDate = tempMinDate;
+const MaxDate = tempMaxDate;
+
+export {Data, AllCountries, AllVisaTypes, MinDate, MaxDate};

@@ -15,7 +15,7 @@ const chartData = <Chart data = {Data}></Chart>;
 const tableData = <Table data = {Data}></Table>;
 
 function App() {
-    const [pageType, setPageType] = useState<PageType>(PageType.Table);
+    const [pageType, setPageType] = useState<PageType>(PageType.Chart);
 
     const buttonType = useCallback((target: PageType) => {
         if (target === pageType) {
