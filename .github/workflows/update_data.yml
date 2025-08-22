@@ -16,6 +16,8 @@ jobs:
         shell: bash -el {0}
     steps:
       - uses: actions/checkout@v4
+        with:          
+          ssh-key: ${{ secrets.DATA_UPDATE_PRIVATE_KEY }}
       - uses: conda-incubator/setup-miniconda@v3
         with:
           environment-file: requirements.txt
@@ -31,4 +33,3 @@ jobs:
           commit-message: Update CSV data
           title: Update CSV
           branch: auto/update-data
-          ssh-key: ${{ secrets.DATA_UPDATE_PRIVATE_KEY }}
