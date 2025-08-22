@@ -1,12 +1,12 @@
 name: Update Data
 
-on: 
- schedule:
-    # Run every day at fixed time
+on:
+  schedule: # Run every day at fixed time
     - cron: "13 16 * * *"
- push:
+  push:
     branches:
-    - main
+      - main
+  workflow_dispatch:
 
 jobs:
   update:
@@ -29,5 +29,6 @@ jobs:
         uses: peter-evans/create-pull-request@v7
         with:
           commit-message: Update CSV data
-          title: Update CSV 
+          title: Update CSV
           branch: auto/update-data
+          ssh-key: ${{ secrets.DATA_UPDATE_PRIVATE_KEY }}
