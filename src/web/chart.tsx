@@ -51,7 +51,7 @@ function createChart(chartList : ChartEntry[], minDate : Date, maxDate: Date,
     }
 
     series.push({
-        name: "Reference",
+        name: "Current",
         data: referenceData,
     });
 
