@@ -7,6 +7,17 @@ import {
 } from 'material-react-table';
 
 function Table({data}: { data: MonthData[] }) {
+    const uniqueDateTimes = [... new Set(data.map(x => x.date.getTime()))];
+    const uniqueDates = uniqueDateTimes.map(x => (
+        displayDate(new Date(x), false)
+    ));
+    const dateFilter = (row, id, filterValue) => {
+        const rowDate = row.original.date;
+        const rowDateStr = displayDate(rowDate, false);
+        return rowDateStr === filterValue;
+
+    }
+
     const columns = useMemo<MRT_ColumnDef<MonthData>[]>(
         () => [
             {
@@ -15,6 +26,9 @@ function Table({data}: { data: MonthData[] }) {
                 id: 'date',
                 Cell: ({cell}) => displayDate(cell.getValue(), false),
                 size: 100,
+                filterVariant: 'select',
+                filterSelectOptions: uniqueDates,
+                filterFn: dateFilter,
             },
             {
                 header: 'Category',
