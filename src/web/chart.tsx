@@ -58,6 +58,8 @@ function createChart(chartList : ChartEntry[], minDate : Date, maxDate: Date,
     for (const entry of chartList) {
         const countryLower = entry.country.toLowerCase();
         const categoryLower = entry.category.toLowerCase();
+        const countryDisplay = AllCountries.find(c => c.toLowerCase() === countryLower);
+        const categoryDisplay = AllVisaTypes.find(c => c.toLowerCase() === categoryLower);
         const currData = Data
             .filter(
                 (x) => (x.country.toLowerCase() === countryLower) &&
@@ -66,9 +68,11 @@ function createChart(chartList : ChartEntry[], minDate : Date, maxDate: Date,
                 x: entry.date,
                 y: ((dateType === DateType.FilingDate) ? entry.filing_date?.getTime() :
                             entry.final_action_date?.getTime() ?? null),
-            }));
+            }))
+            .filter((x) => x.y != null)
+        ;
         series.push({
-            name: `${entry.country}/${entry.category}`,
+            name: `${countryDisplay}/${categoryDisplay}`,
             data: currData,
         });
     }
@@ -79,8 +83,8 @@ function createChart(chartList : ChartEntry[], minDate : Date, maxDate: Date,
         allColors.push(randomColor({seed: 2 ** (i + 10), luminosity: 'dark'}));
     }
     const options = {
-        stroke: { curve: "smooth" },
-        markers: { size: 0 },
+        stroke: { curve: "straight" },
+        markers: { size: 0},
         xaxis: {
             type: 'datetime',
         },
@@ -91,11 +95,14 @@ function createChart(chartList : ChartEntry[], minDate : Date, maxDate: Date,
                     return dateTypeToString(dateType) + " for " + displayDate(new Date(value), false)
                 }
             },
-            shared: true,
+            shared: false,
             fixed : {
                 enabled: false,
                 position: 'topLeft',
-            }
+            },
+            onDatasetHover : {
+                highlightDataSeries: true,
+            },
         },
         colors: allColors,
         yaxis: {
@@ -131,7 +138,7 @@ function Chart({data}: { data: MonthData[] }) {
     const [country, setCountry] = useState<string>("");
     const [category, setCategory] = useState<string>("");
 
-    const [dateType, setDateType] = useState<DateType>(DateType.FinalActionDate);
+    const [dateType, setDateType] = useState<DateType>(DateType.FilingDate);
     const toggleDateType = () => {
         if (dateType === DateType.FinalActionDate) {
             setDateType(DateType.FilingDate);
@@ -230,7 +237,7 @@ function Chart({data}: { data: MonthData[] }) {
             <Grid size={4}>
                 <Button onClick={toggleDateType}
                         variant="contained">
-                    {dateTypeToString(dateType)}
+                    SHOWING {dateTypeToString(dateType)}
                 </Button>
             </Grid>
         </Grid>
