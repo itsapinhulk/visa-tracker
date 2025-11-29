@@ -68,7 +68,10 @@ function Table({data}: { data: MonthData[] }) {
     const table = useMaterialReactTable({
         columns,
         data,
-        initialState: { showColumnFilters: true },
+        initialState: {
+            showColumnFilters: true,
+            sorting: [{id: 'date', desc: true}],
+        },
     });
 
     return <MaterialReactTable table={table} />;
