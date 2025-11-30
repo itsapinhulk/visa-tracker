@@ -2,6 +2,11 @@ import MenuItem from '@mui/material/MenuItem';
 import Grid from '@mui/material/Grid';
 import TextField from '@mui/material/TextField';
 import Button from '@mui/material/Button';
+import Radio from '@mui/material/Radio';
+import RadioGroup from '@mui/material/RadioGroup';
+import FormControlLabel from '@mui/material/FormControlLabel';
+import FormControl from '@mui/material/FormControl';
+import FormLabel from '@mui/material/FormLabel';
 import {ChangeEvent, useMemo, useState} from "react";
 import ApexChart  from "react-apexcharts";
 import Box from '@mui/material/Box';
@@ -129,7 +134,7 @@ function createChart(chartList : ChartEntry[], minDate : Date, maxDate: Date,
 
     return (
         <div className="line">
-            <ApexChart options={options} series={series} type="line" width="1000px" />
+            <ApexChart options={options} series={series} type="line" width="900px" />
         </div>
     );
 }
@@ -139,15 +144,9 @@ function Chart({data}: { data: MonthData[] }) {
     const [category, setCategory] = useState<string>("");
 
     const [dateType, setDateType] = useState<DateType>(DateType.FilingDate);
-    const toggleDateType = () => {
-        if (dateType === DateType.FinalActionDate) {
-            setDateType(DateType.FilingDate);
-        } else if (dateType === DateType.FilingDate){
-            setDateType(DateType.FinalActionDate);
-        } else {
-            console.error("Unhandled date type: " + dateType)
-        }
-    }
+    const handleDateTypeChange = (event: ChangeEvent<HTMLInputElement>) => {
+        setDateType(parseInt(event.target.value) as DateType);
+    };
 
     const handleCountryChange = (event: ChangeEvent<HTMLInputElement>) => {
         setCountry(event.target.value as string);
@@ -230,15 +229,38 @@ function Chart({data}: { data: MonthData[] }) {
             </Grid>
             <Grid size={4}>
                 <Button onClick={() => setChartList([])}
-                        variant="contained">
+                        variant="contained"
+                        color="error">
                     Reset Chart
                 </Button>
             </Grid>
-            <Grid size={4}>
-                <Button onClick={toggleDateType}
-                        variant="contained">
-                    SHOWING {dateTypeToString(dateType)}
-                </Button>
+        </Grid>
+        <Grid container spacing={2} columns={24}
+              alignItems="center"
+              justifyContent="center"
+              sx={{mt: 2}}
+        >
+            <Grid size={12}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                    <FormLabel>Date Type: </FormLabel>
+                    <RadioGroup
+                        value={dateType}
+                        onChange={handleDateTypeChange}
+                        row
+                        sx={{ flexWrap: 'nowrap' }}
+                    >
+                        <FormControlLabel
+                            value={DateType.FilingDate}
+                            control={<Radio />}
+                            label="Filing Date"
+                        />
+                        <FormControlLabel
+                            value={DateType.FinalActionDate}
+                            control={<Radio />}
+                            label="Final Action Date"
+                        />
+                    </RadioGroup>
+                </Box>
             </Grid>
         </Grid>
         <Grid size={8}>

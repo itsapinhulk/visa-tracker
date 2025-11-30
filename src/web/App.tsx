@@ -27,8 +27,9 @@ function App() {
             flexGrow: 1,
             background: 'linear-gradient(145deg, #f0f4ff 0%, #ffffff 100%)',
             minHeight: '100vh',
-            mt: 0,
-            borderRadius: 2
+            borderRadius: 2,
+            m: 0,
+            p: 0
         }}>
             <AppBar position="static" sx={{
                 borderRadius: 2,
@@ -82,8 +83,8 @@ function App() {
                     </Link>
                 </Toolbar>
             </AppBar>
-            <Box sx={{width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', px: 2}}>
-                <Box sx={{
+            <Box sx={{width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center'}}>
+            <Box sx={{
                     borderBottom: 1,
                     borderColor: 'rgba(25, 118, 210, 0.2)',
                     width: '100%',
@@ -103,7 +104,7 @@ function App() {
             </Box>
             <Box sx={{width: '100%', display: 'flex', justifyContent: 'center', pb: 2}}>
                 <Typography variant="body2" color="text.secondary">
-                    Data source: <Link
+                    Data Source: <Link
                     href="https://travel.state.gov/content/travel/en/legal/visa-law0/visa-bulletin.html" target="_blank"
                     rel="noopener">
                     U.S. Department of State Visa Bulletin
