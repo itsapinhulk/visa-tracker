@@ -62,15 +62,17 @@ function dateTypeToString(dateType: DateType) {
 
 function createChart(chartList : ChartEntry[], minDate : Date, maxDate: Date,
                      dateType: DateType, showEstimate: boolean, estimatePeriod : number) {
-    const allDates = allMonths(minDate, maxDate);
-
+    const numberOfEstimateYears = 10;
     // Add reference line
     let series = [];
 
     let referenceData = [];
     let referenceEndDate = maxDate;
     if (showEstimate) {
-        referenceEndDate = new Date(maxDate.getFullYear() + 5, maxDate.getMonth(), 1);
+        referenceEndDate = new Date(
+            maxDate.getFullYear() + numberOfEstimateYears,
+            maxDate.getMonth(), 1
+        );
     }
     const referenceDates = allMonths(minDate, referenceEndDate);
     for (const date of referenceDates) {
@@ -121,7 +123,7 @@ function createChart(chartList : ChartEntry[], minDate : Date, maxDate: Date,
                 const lastDate = new Date(currData[currData.length - 1].x);
                 const futureMonths = allMonths(
                     new Date(lastDate.getFullYear(), lastDate.getMonth() + 1, 1),
-                    new Date(lastDate.getFullYear() + 5, lastDate.getMonth(), 1)
+                    new Date(lastDate.getFullYear() + numberOfEstimateYears, lastDate.getMonth(), 1)
                 );
 
                 const lastDataPoint = currData[currData.length - 1];
