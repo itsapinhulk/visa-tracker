@@ -1,11 +1,12 @@
 import MenuItem from '@mui/material/MenuItem';
 import Grid from '@mui/material/Grid';
 import TextField from '@mui/material/TextField';
+import FormGroup from '@mui/material/FormGroup';
+import Checkbox from '@mui/material/Checkbox';
 import Button from '@mui/material/Button';
 import Radio from '@mui/material/Radio';
 import RadioGroup from '@mui/material/RadioGroup';
 import FormControlLabel from '@mui/material/FormControlLabel';
-import FormControl from '@mui/material/FormControl';
 import FormLabel from '@mui/material/FormLabel';
 import {ChangeEvent, useMemo, useState} from "react";
 import ApexChart  from "react-apexcharts";
@@ -16,6 +17,22 @@ import {AllCountries, AllVisaTypes, Data, MinDate, MaxDate, displayDate, MonthDa
 interface ChartEntry {
     country: string
     category: string
+}
+
+function calculateRegression(data: { x: Date; y: number }[]): { slope: number; intercept: number } {
+    const n = data.length;
+    const xVals = data.map(d => d.x.getTime());
+    const yVals = data.map(d => d.y);
+
+    const sumX = xVals.reduce((a, b) => a + b, 0);
+    const sumY = yVals.reduce((a, b) => a + b, 0);
+    const sumXY = xVals.reduce((sum, x, i) => sum + x * yVals[i], 0);
+    const sumXX = xVals.reduce((sum, x) => sum + x * x, 0);
+
+    const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
+    const intercept = (sumY - slope * sumX) / n;
+
+    return {slope, intercept};
 }
 
 function allMonths(startDate, endDate) {
@@ -44,14 +61,19 @@ function dateTypeToString(dateType: DateType) {
 }
 
 function createChart(chartList : ChartEntry[], minDate : Date, maxDate: Date,
-                     dateType: DateType) {
+                     dateType: DateType, showEstimate: boolean, estimatePeriod : number) {
     const allDates = allMonths(minDate, maxDate);
 
     // Add reference line
     let series = [];
 
     let referenceData = [];
-    for (const date of allDates) {
+    let referenceEndDate = maxDate;
+    if (showEstimate) {
+        referenceEndDate = new Date(maxDate.getFullYear() + 5, maxDate.getMonth(), 1);
+    }
+    const referenceDates = allMonths(minDate, referenceEndDate);
+    for (const date of referenceDates) {
         referenceData.push({x: date, y: date.getTime()});
     }
 
@@ -60,7 +82,14 @@ function createChart(chartList : ChartEntry[], minDate : Date, maxDate: Date,
         data: referenceData,
     });
 
-    for (const entry of chartList) {
+    // Reference line is grey, rest are vibrant colors.
+    let allColors = ['#AAAAAA'];
+    let targetColors = [];
+    for (let i = 0; i < chartList.length; i++) {
+        targetColors.push(randomColor({seed: 2 ** (i + 10), luminosity: 'dark'}));
+    }
+
+    chartList.forEach((entry, index) => {
         const countryLower = entry.country.toLowerCase();
         const categoryLower = entry.category.toLowerCase();
         const countryDisplay = AllCountries.find(c => c.toLowerCase() === countryLower);
@@ -76,17 +105,47 @@ function createChart(chartList : ChartEntry[], minDate : Date, maxDate: Date,
             }))
             .filter((x) => x.y != null)
         ;
+
         series.push({
             name: `${countryDisplay}/${categoryDisplay}`,
             data: currData,
         });
-    }
+        allColors.push(targetColors[index]);
 
-    // Reference line is grey, rest are vibrant colors.
-    let allColors = ['#AAAAAA'];
-    for (let i = 0; i < series.length; i++) {
-        allColors.push(randomColor({seed: 2 ** (i + 10), luminosity: 'dark'}));
-    }
+        if (showEstimate && currData.length > 0) {
+            const estimateMonths = estimatePeriod * 12;
+            const recentData = currData.slice(-estimateMonths);
+
+            if (recentData.length >= 2) {
+                const regression = calculateRegression(recentData);
+                const lastDate = new Date(currData[currData.length - 1].x);
+                const futureMonths = allMonths(
+                    new Date(lastDate.getFullYear(), lastDate.getMonth() + 1, 1),
+                    new Date(lastDate.getFullYear() + 5, lastDate.getMonth(), 1)
+                );
+
+                const lastDataPoint = currData[currData.length - 1];
+                const predictions = futureMonths.map(date => ({
+                    x: date,
+                    y: lastDataPoint.y + regression.slope * (date.getTime() - lastDataPoint.x.getTime())
+                }));
+
+                series.push({
+                    name: `${countryDisplay}/${categoryDisplay} (Estimate)`,
+                    data: [lastDataPoint, ...predictions],
+                    dashArray: [5, 5]
+                });
+
+                const lighterColor = randomColor({
+                    seed: 2 ** (index + 10),
+                    luminosity: 'light',
+                    hue: targetColors[index]
+                });
+                allColors.push(lighterColor);
+            }
+        }
+    });
+
     const options = {
         stroke: { curve: "straight" },
         markers: { size: 0},
@@ -144,8 +203,20 @@ function Chart({data}: { data: MonthData[] }) {
     const [category, setCategory] = useState<string>("");
 
     const [dateType, setDateType] = useState<DateType>(DateType.FilingDate);
+
+    const [showEstimate, setShowEstimate] = useState<boolean>(false);
+    const [estimatePeriod, setEstimatePeriod] = useState<number>(1);
+
     const handleDateTypeChange = (event: ChangeEvent<HTMLInputElement>) => {
         setDateType(parseInt(event.target.value) as DateType);
+    };
+
+    const handleEstimateChange = (event: ChangeEvent<HTMLInputElement>) => {
+        setShowEstimate(event.target.checked);
+    };
+
+    const handleEstimatePeriodChange = (event: ChangeEvent<HTMLInputElement>) => {
+        setEstimatePeriod(parseInt(event.target.value));
     };
 
     const handleCountryChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -182,8 +253,9 @@ function Chart({data}: { data: MonthData[] }) {
     }
 
     const chartDisplay = useMemo(
-        () => createChart(chartList, MinDate, MaxDate, dateType),
-        [chartList, MinDate, MaxDate, dateType]
+        () => createChart(chartList, MinDate, MaxDate, dateType,
+                            showEstimate, estimatePeriod),
+        [chartList, MinDate, MaxDate, dateType, showEstimate, estimatePeriod]
     );
 
     return (<div>
@@ -260,6 +332,33 @@ function Chart({data}: { data: MonthData[] }) {
                             label="Final Action Date"
                         />
                     </RadioGroup>
+                </Box>
+            </Grid>
+            <Grid size={8}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                    <FormGroup row>
+                        <FormControlLabel
+                            control={
+                                <Checkbox
+                                    checked={showEstimate}
+                                    onChange={handleEstimateChange}
+                                />
+                            }
+                            label="Estimate using"
+                        />
+                        <TextField
+                            select
+                            disabled={!showEstimate}
+                            value={estimatePeriod}
+                            onChange={handleEstimatePeriodChange}
+                            variant="standard"
+                            sx={{minWidth: 120}}
+                        >
+                            <MenuItem value={1}>1 year</MenuItem>
+                            <MenuItem value={2}>2 years</MenuItem>
+                            <MenuItem value={5}>5 years</MenuItem>
+                        </TextField>
+                    </FormGroup>
                 </Box>
             </Grid>
         </Grid>
