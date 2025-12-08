@@ -90,6 +90,7 @@ function createChart(chartList : ChartEntry[], minDate : Date, maxDate: Date,
     for (let i = 0; i < chartList.length; i++) {
         targetColors.push(randomColor({seed: 2 ** (i + 10), luminosity: 'dark'}));
     }
+    let targetDashArray = [0];
 
     chartList.forEach((entry, index) => {
         const countryLower = entry.country.toLowerCase();
@@ -113,6 +114,7 @@ function createChart(chartList : ChartEntry[], minDate : Date, maxDate: Date,
             data: currData,
         });
         allColors.push(targetColors[index]);
+        targetDashArray.push(0);
 
         if (showEstimate && currData.length > 0) {
             const estimateMonths = estimatePeriod * 12;
@@ -135,7 +137,6 @@ function createChart(chartList : ChartEntry[], minDate : Date, maxDate: Date,
                 series.push({
                     name: `${countryDisplay}/${categoryDisplay} (Estimate)`,
                     data: [lastDataPoint, ...predictions],
-                    dashArray: [5, 5]
                 });
 
                 const lighterColor = randomColor({
@@ -144,12 +145,17 @@ function createChart(chartList : ChartEntry[], minDate : Date, maxDate: Date,
                     hue: targetColors[index]
                 });
                 allColors.push(lighterColor);
+                targetDashArray.push(3);
             }
         }
     });
 
     const options = {
-        stroke: { curve: "straight" },
+        stroke: {
+            width: 2,
+            curve: "straight",
+            dashArray: targetDashArray,
+        },
         markers: { size: 0},
         xaxis: {
             type: 'datetime',
