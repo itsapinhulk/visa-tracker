@@ -9,30 +9,20 @@ import RadioGroup from '@mui/material/RadioGroup';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import FormLabel from '@mui/material/FormLabel';
 import {ChangeEvent, useMemo, useState} from "react";
-import ApexChart  from "react-apexcharts";
+import ApexChart from "react-apexcharts";
 import Box from '@mui/material/Box';
 import randomColor from 'randomcolor';
-import {AllCountries, AllVisaTypes, Data, MinDate, MaxDate, displayDate, MonthData} from './all_data';
+import {AllCountries, AllVisaTypes, Data, displayDate, MaxDate, MinDate, MonthData} from './all_data';
 
 interface ChartEntry {
     country: string
     category: string
 }
 
-function calculateRegression(data: { x: Date; y: number }[]): { slope: number; intercept: number } {
-    const n = data.length;
-    const xVals = data.map(d => d.x.getTime());
-    const yVals = data.map(d => d.y);
-
-    const sumX = xVals.reduce((a, b) => a + b, 0);
-    const sumY = yVals.reduce((a, b) => a + b, 0);
-    const sumXY = xVals.reduce((sum, x, i) => sum + x * yVals[i], 0);
-    const sumXX = xVals.reduce((sum, x) => sum + x * x, 0);
-
-    const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
-    const intercept = (sumY - slope * sumX) / n;
-
-    return {slope, intercept};
+function calculateSlope(data: { x: Date; y: number }[]): { slope: number; intercept: number } {
+    const first = data[0];
+    const last = data[data.length - 1];
+    return (last.y - first.y) / (last.x.getTime() - first.x.getTime());
 }
 
 function allMonths(startDate, endDate) {
@@ -121,7 +111,7 @@ function createChart(chartList : ChartEntry[], minDate : Date, maxDate: Date,
             const recentData = currData.slice(-estimateMonths);
 
             if (recentData.length >= 2) {
-                const regression = calculateRegression(recentData);
+                const slope = calculateSlope(recentData);
                 const lastDate = new Date(currData[currData.length - 1].x);
                 const futureMonths = allMonths(
                     new Date(lastDate.getFullYear(), lastDate.getMonth() + 1, 1),
@@ -131,7 +121,7 @@ function createChart(chartList : ChartEntry[], minDate : Date, maxDate: Date,
                 const lastDataPoint = currData[currData.length - 1];
                 const predictions = futureMonths.map(date => ({
                     x: date,
-                    y: lastDataPoint.y + regression.slope * (date.getTime() - lastDataPoint.x.getTime())
+                    y: lastDataPoint.y + slope * (date.getTime() - lastDataPoint.x.getTime())
                 }));
 
                 series.push({
@@ -212,8 +202,8 @@ function Chart({data}: { data: MonthData[] }) {
 
     const [dateType, setDateType] = useState<DateType>(DateType.FilingDate);
 
-    const [showEstimate, setShowEstimate] = useState<boolean>(false);
-    const [estimatePeriod, setEstimatePeriod] = useState<number>(1);
+    const [showEstimate, setShowEstimate] = useState<boolean>(true);
+    const [estimatePeriod, setEstimatePeriod] = useState<number>(2);
 
     const handleDateTypeChange = (event: ChangeEvent<HTMLInputElement>) => {
         setDateType(parseInt(event.target.value) as DateType);
