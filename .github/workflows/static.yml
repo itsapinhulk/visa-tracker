@@ -33,25 +33,25 @@ jobs: # Single deploy job since we're just deploying
       - name: Switch Root
         run: cd src/web/
 
-      - name: Set up Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: lts/*
-          cache: 'npm'
-          cache-dependency-path: src/web/package-lock.json
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+
       - name: Install dependencies
         working-directory: ./src/web
-        run: npm ci
+        run: bun install
+
       - name: Build Vite App
         working-directory: ./src/web
-        run: npm run build
+        run: bun run build
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with: # Upload entire repository
           path: './src/web/dist'
+
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4

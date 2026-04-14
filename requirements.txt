@@ -1,5 +1,0 @@
-python
-requests
-beautifulsoup4
-click
-nodejs
