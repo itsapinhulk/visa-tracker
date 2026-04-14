@@ -16,7 +16,9 @@ _SupportedDateInputs = click.DateTime(formats=['%Y-%m', '%Y%m'])
               help='Start date of the download in YYYY-MM-DD format.')
 @click.option('--end_date', type=_SupportedDateInputs,
               help='End date of the download in YYYY-MM-DD format.')
-def _main(cache_dir, data_dir, start_date = None, end_date = None):
+@click.option('--ignore_404', is_flag=True, default=False,
+              help='Skip pages that return a 404 instead of raising an error.')
+def _main(cache_dir, data_dir, start_date = None, end_date = None, ignore_404 = False):
   cache_dir = pathlib.Path(cache_dir).absolute()
   data_dir = pathlib.Path(data_dir).absolute()
 
@@ -43,7 +45,8 @@ def _main(cache_dir, data_dir, start_date = None, end_date = None):
     raise Exception("Start date must be at least 2001-12-December")
 
 
-  processDates(start_date=start_date, end_date=end_date, cache_dir=cache_dir, data_dir=data_dir)
+  processDates(start_date=start_date, end_date=end_date, cache_dir=cache_dir, data_dir=data_dir,
+               ignore_404=ignore_404)
 
 if __name__ == '__main__':
     _main()

@@ -34,7 +34,7 @@ jobs:
       - name: Script
         run: |
           mkdir -p ./cache
-          ./update_data.sh
+          ./update_data.sh --ignore_404
           git status
 
       - name: Create Pull Request

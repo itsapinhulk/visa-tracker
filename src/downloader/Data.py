@@ -195,12 +195,15 @@ class Data:
       f"-{self.year}.html"
     )
 
-  def download(self):
+  def download(self, ignore_404: bool = False):
     web_page = self._getWebPage()
 
     if not self.path.exists():
       print(f"Downloading {web_page}")
       resp = requests.get(web_page)
+      if resp.status_code == 404 and ignore_404:
+        print(f"Skipping {web_page} (404)")
+        return False
       if resp.status_code != 200:
         raise Exception(f"Failed to download {web_page}, got status code {resp.status_code}")
 
@@ -209,7 +212,7 @@ class Data:
         f.write(page_content)
       return True
     else:
-      print(f"Skipping {web_page}")
+      print(f"Skipping download {web_page}")
 
     return False
 
