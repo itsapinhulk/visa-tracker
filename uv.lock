@@ -2,10 +2,6 @@ version = 1
 revision = 3
 requires-python = ">=3.11"
 
-[options]
-exclude-newer = "2026-04-04T04:32:10.740730492Z"
-exclude-newer-span = "P10D"
-
 [[package]]
 name = "beautifulsoup4"
 version = "4.14.3"
