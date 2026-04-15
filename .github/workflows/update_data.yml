@@ -34,7 +34,7 @@ jobs:
       - name: Script
         run: |
           mkdir -p ./cache
-          ./update_data.sh --ignore_404
+          ./update_data.sh --ignore_404 --aggressive
           git status
 
       - name: Discard uv.lock changes

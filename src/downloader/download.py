@@ -18,14 +18,16 @@ _SupportedDateInputs = click.DateTime(formats=['%Y-%m', '%Y%m'])
               help='End date of the download in YYYY-MM-DD format.')
 @click.option('--ignore_404', is_flag=True, default=False,
               help='Skip pages that return a 404 instead of raising an error.')
-def _main(cache_dir, data_dir, start_date = None, end_date = None, ignore_404 = False):
+@click.option('--aggressive', is_flag=True, default=False,
+              help='Always query the next month regardless of current day.')
+def _main(cache_dir, data_dir, start_date = None, end_date = None, ignore_404 = False, aggressive = False):
   cache_dir = pathlib.Path(cache_dir).absolute()
   data_dir = pathlib.Path(data_dir).absolute()
 
   if end_date is None:
     end_date = datetime.date.today()
-    # Choose next month after the 15th
-    if end_date.day >= 15:
+    # Choose next month after the 15th, or always in aggressive mode
+    if aggressive or end_date.day >= 15:
       end_date += datetime.timedelta(days=20)
       end_date = end_date.replace(day=1)
   else :

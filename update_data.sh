@@ -4,4 +4,7 @@ SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
 cd ${SCRIPT_DIR}
 
-uv run python -m src.downloader.download --cache_dir ./cache --data_dir ./data "$@"
+(
+  set -x
+  uv run python -m src.downloader.download --cache_dir ./cache --data_dir ./data "$@"
+)
