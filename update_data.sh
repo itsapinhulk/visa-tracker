@@ -6,5 +6,5 @@ cd ${SCRIPT_DIR}
 
 (
   set -x
-  uv run python -m src.downloader.download --cache_dir ./cache --data_dir ./data "$@"
+  uv run --frozen python -m src.downloader.download --cache_dir ./cache --data_dir ./data "$@"
 )

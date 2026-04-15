@@ -37,9 +37,6 @@ jobs:
           ./update_data.sh --ignore_404 --aggressive
           git status
 
-      - name: Discard uv.lock changes
-        run: git checkout -- uv.lock
-
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v8.1.0
         with:
