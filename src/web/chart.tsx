@@ -50,8 +50,9 @@ function dateTypeToString(dateType: DateType) {
     }
 }
 
-function createChart(chartList : ChartEntry[], minDate : Date, maxDate: Date,
-                     dateType: DateType, showEstimate: boolean, estimatePeriod : number) {
+function createChartData(chartList : ChartEntry[], minDate : Date, maxDate: Date,
+                     dateType: DateType, showEstimate: boolean, estimatePeriod : number,
+                     targetDate: Date | null) {
     const numberOfEstimateYears = 10;
     // Add reference line
     let series = [];
@@ -140,6 +141,18 @@ function createChart(chartList : ChartEntry[], minDate : Date, maxDate: Date,
         }
     });
 
+    if (targetDate) {
+        series.push({
+            name: 'Target Date',
+            data: [
+                { x: targetDate, y: targetDate.getTime() },
+                { x: referenceEndDate, y: targetDate.getTime() },
+            ],
+        });
+        allColors.push('#999999');
+        targetDashArray.push(4);
+    }
+
     const options = {
         stroke: {
             width: 2,
@@ -187,7 +200,22 @@ function createChart(chartList : ChartEntry[], minDate : Date, maxDate: Date,
         grid: {
             position: 'front',
         },
+        annotations: {
+            points: targetDate ? [{
+                x: targetDate.getTime(),
+                y: targetDate.getTime(),
+                marker: { size: 0 },
+                label: {
+                    text: 'Target: ' + displayDate(targetDate, true),
+                    textAnchor: 'end',
+                    offsetX: -10,
+                    offsetY: -2,
+                    style: { color: '#666666', background: 'white', border: 0, fontSize: '11px' },
+                },
+            }] : [],
+        },
     };
+
 
     return (
         <div className="line">
@@ -205,6 +233,8 @@ function Chart({data}: { data: MonthData[] }) {
     const [showEstimate, setShowEstimate] = useState<boolean>(true);
     const [estimatePeriod, setEstimatePeriod] = useState<number>(2);
 
+    const [targetDateStr, setTargetDateStr] = useState<string>("");
+
     const handleDateTypeChange = (event: ChangeEvent<HTMLInputElement>) => {
         setDateType(parseInt(event.target.value) as DateType);
     };
@@ -215,6 +245,10 @@ function Chart({data}: { data: MonthData[] }) {
 
     const handleEstimatePeriodChange = (event: ChangeEvent<HTMLInputElement>) => {
         setEstimatePeriod(parseInt(event.target.value));
+    };
+
+    const handleTargetDateChange = (event: ChangeEvent<HTMLInputElement>) => {
+        setTargetDateStr(event.target.value);
     };
 
     const handleCountryChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -250,12 +284,22 @@ function Chart({data}: { data: MonthData[] }) {
         });
     }
 
+    const targetDate = useMemo(() => {
+        if (!targetDateStr) return null;
+        const d = new Date(targetDateStr);
+        return isNaN(d.getTime()) ? null : d;
+    }, [targetDateStr]);
+
     const chartDisplay = useMemo(
-        () => createChart(chartList, MinDate, MaxDate, dateType,
-                            showEstimate, estimatePeriod),
-        [chartList, MinDate, MaxDate, dateType, showEstimate, estimatePeriod]
+        () => createChartData(chartList, MinDate, MaxDate, dateType,
+                            showEstimate, estimatePeriod, targetDate),
+        [chartList, MinDate, MaxDate, dateType, showEstimate, estimatePeriod, targetDate]
     );
 
+    const resetChart = () => {
+        setChartList([]);
+        setTargetDateStr("");
+    }
     return (<div>
         <Grid container spacing={2} columns={24}
               alignItems="center"
@@ -298,7 +342,7 @@ function Chart({data}: { data: MonthData[] }) {
                 </Button>
             </Grid>
             <Grid size={4}>
-                <Button onClick={() => setChartList([])}
+                <Button onClick={() => resetChart()}
                         variant="contained"
                         color="error">
                     Reset Chart
@@ -310,7 +354,7 @@ function Chart({data}: { data: MonthData[] }) {
               justifyContent="center"
               sx={{mt: 2}}
         >
-            <Grid size={12}>
+            <Grid size={10}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                     <FormLabel>Date Type: </FormLabel>
                     <RadioGroup
@@ -330,6 +374,19 @@ function Chart({data}: { data: MonthData[] }) {
                             label="Final Action Date"
                         />
                     </RadioGroup>
+                </Box>
+            </Grid>
+            <Grid size={4}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <TextField
+                        type="date"
+                        label="Target Date"
+                        value={targetDateStr}
+                        onChange={handleTargetDateChange}
+                        variant="standard"
+                        size="small"
+                        InputLabelProps={{ shrink: true }}
+                    />
                 </Box>
             </Grid>
             <Grid size={8}>
