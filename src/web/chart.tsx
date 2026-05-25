@@ -82,6 +82,7 @@ function createChartData(chartList : ChartEntry[], minDate : Date, maxDate: Date
         targetColors.push(randomColor({seed: 2 ** (i + 10), luminosity: 'dark'}));
     }
     let targetDashArray = [0];
+    let crossingAnnotations = [];
 
     chartList.forEach((entry, index) => {
         const countryLower = entry.country.toLowerCase();
@@ -106,6 +107,25 @@ function createChartData(chartList : ChartEntry[], minDate : Date, maxDate: Date
         });
         allColors.push(targetColors[index]);
         targetDashArray.push(0);
+
+        const targetT = targetDate?.getTime() ?? null;
+
+        // Annotate where actual data first crosses the target date line (y >= targetT)
+        const actualCrossing = targetT != null ? currData.find(pt => pt.y >= targetT) : null;
+        if (actualCrossing && targetT != null) {
+            crossingAnnotations.push({
+                x: actualCrossing.x.getTime(),
+                y: targetT,
+                marker: { size: 4, fillColor: targetColors[index], strokeColor: targetColors[index] },
+                label: {
+                    text: `${countryDisplay}/${categoryDisplay}`,
+                    textAnchor: 'start',
+                    offsetX: 4,
+                    offsetY: -4,
+                    style: { color: targetColors[index], background: 'white', border: 0, fontSize: '11px' },
+                },
+            });
+        }
 
         if (showEstimate && currData.length > 0) {
             const estimateMonths = estimatePeriod * 12;
@@ -137,9 +157,47 @@ function createChartData(chartList : ChartEntry[], minDate : Date, maxDate: Date
                 });
                 allColors.push(lighterColor);
                 targetDashArray.push(3);
+
+                // Annotate where estimate first crosses the target date line
+                // Solve: lastY + slope*(t - lastT) = targetT  =>  t = lastT + (targetT - lastY) / slope
+                if (targetT != null && slope !== 0 && !actualCrossing) {
+                    const lastT = lastDataPoint.x.getTime();
+                    const lastY = lastDataPoint.y;
+                    const tCross = lastT + (targetT - lastY) / slope;
+                    const maxT = new Date(lastDate.getFullYear() + numberOfEstimateYears, lastDate.getMonth(), 1).getTime();
+                    if (tCross > lastT && tCross <= maxT) {
+                        crossingAnnotations.push({
+                            x: tCross,
+                            y: targetT,
+                            marker: { size: 4, fillColor: lighterColor, strokeColor: targetColors[index] },
+                            label: {
+                                text: `${countryDisplay}/${categoryDisplay} ~${displayDate(new Date(tCross), true)}`,
+                                textAnchor: 'start',
+                                offsetX: 4,
+                                offsetY: -4,
+                                style: { color: targetColors[index], background: 'white', border: 0, fontSize: '11px' },
+                            },
+                        });
+                    }
+                }
             }
         }
     });
+
+    // Stagger labels vertically when annotations land close together on the x-axis
+    crossingAnnotations.sort((a, b) => (a.x as number) - (b.x as number));
+    const CLOSE_MS = 365 * 24 * 60 * 60 * 1000;
+    let prevX = -Infinity;
+    let staggerLevel = 0;
+    for (const ann of crossingAnnotations) {
+        if ((ann.x as number) - prevX < CLOSE_MS) {
+            staggerLevel++;
+        } else {
+            staggerLevel = 0;
+        }
+        ann.label.offsetY = -(4 + staggerLevel * 18);
+        prevX = ann.x as number;
+    }
 
     if (targetDate) {
         series.push({
@@ -201,18 +259,21 @@ function createChartData(chartList : ChartEntry[], minDate : Date, maxDate: Date
             position: 'front',
         },
         annotations: {
-            points: targetDate ? [{
-                x: targetDate.getTime(),
-                y: targetDate.getTime(),
-                marker: { size: 0 },
-                label: {
-                    text: 'Target: ' + displayDate(targetDate, true),
-                    textAnchor: 'end',
-                    offsetX: -10,
-                    offsetY: -2,
-                    style: { color: '#666666', background: 'white', border: 0, fontSize: '11px' },
-                },
-            }] : [],
+            points: [
+                ...(targetDate ? [{
+                    x: targetDate.getTime(),
+                    y: targetDate.getTime(),
+                    marker: { size: 0 },
+                    label: {
+                        text: 'Target: ' + displayDate(targetDate, true),
+                        textAnchor: 'end',
+                        offsetX: -10,
+                        offsetY: -2,
+                        style: { color: '#666666', background: 'white', border: 0, fontSize: '11px' },
+                    },
+                }] : []),
+                ...crossingAnnotations,
+            ],
         },
     };
 
