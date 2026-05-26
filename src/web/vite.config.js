@@ -6,6 +6,9 @@ process.env.VITE_HOME_URL ??= 'http://localhost:6001'
 process.env.VITE_ANALYTICS_URL ??= 'http://localhost:6001/analytics.js'
 
 export default defineConfig({
+    define: {
+        __BUILD_TIME__: JSON.stringify(process.env.VITE_BUILD_TIME || String(Date.now())),
+    },
     plugins: [
         react(),
         dsv(),

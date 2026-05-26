@@ -1,4 +1,17 @@
 import {useState} from "react";
+
+declare const __BUILD_TIME__: string
+
+function formatBuildTime(ms: string): string {
+    const d = new Date(Number(ms))
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+    const day = String(d.getUTCDate()).padStart(2, '0')
+    const mon = months[d.getUTCMonth()]
+    const year = d.getUTCFullYear()
+    const hh = String(d.getUTCHours()).padStart(2, '0')
+    const mm = String(d.getUTCMinutes()).padStart(2, '0')
+    return `${day} ${mon} ${year}, ${hh}:${mm} UTC`
+}
 import Box from '@mui/material/Box';
 import Chart from "./chart";
 import Table from "./table";
@@ -109,6 +122,11 @@ function App() {
                     rel="noopener">
                     U.S. Department of State Visa Bulletin
                 </Link>
+                </Typography>
+            </Box>
+            <Box sx={{width: '100%', display: 'flex', justifyContent: 'center', pb: 2}}>
+                <Typography variant="body2" color="text.secondary">
+                    Last updated: {formatBuildTime(__BUILD_TIME__)}
                 </Typography>
             </Box>
         </Box>
