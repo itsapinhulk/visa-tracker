@@ -58,7 +58,7 @@ function App() {
                           }}>
                         <GitHubIcon sx={{fontSize: '32px', color: 'black'}} />
                     </Link>
-                    <Link href="https://itsapinhulk.github.io" color="inherit"
+                    <Link href={import.meta.env.VITE_HOME_URL} color="inherit"
                           sx={{
                               display: 'flex',
                               alignItems: 'center',
