@@ -1,6 +1,7 @@
 # Visa Tracker
 
-See deployed website @ [https://itsapinhulk.github.io/visa-tracker/](https://itsapinhulk.github.io/visa-tracker/)
+See deployed website @ [https://projects.pulkitsinha.com/us-green-card-wait-time/](https://projects.pulkitsinha.com/us-green-card-wait-time/)
+
 ## Downloading Data
 
 There are two parts to the data - cache of web pages and the computed CSV files, with the
