@@ -1,0 +1,15 @@
+name: Trigger Website Update
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run Update Submodules in pulkitsinha.com
+        run: gh workflow run update-submodules.yml --repo itsapinhulk/pulkitsinha.com --ref main
+        env:
+          GH_TOKEN: ${{ secrets.PSCOM_TRIGGER_TOKEN }}
