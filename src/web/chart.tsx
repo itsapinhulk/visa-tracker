@@ -8,7 +8,7 @@ import Radio from '@mui/material/Radio';
 import RadioGroup from '@mui/material/RadioGroup';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import FormLabel from '@mui/material/FormLabel';
-import {ChangeEvent, useMemo, useState} from "react";
+import {ChangeEvent, useEffect, useMemo, useState} from "react";
 import ApexChart from "react-apexcharts";
 import Box from '@mui/material/Box';
 import randomColor from 'randomcolor';
@@ -47,6 +47,51 @@ function dateTypeToString(dateType: DateType) {
         return "Filing Date";
     } else {
         return "Unhandled Date Type: " + dateType;
+    }
+}
+
+const STORAGE_KEY = "visa-tracker-chart-state";
+
+interface PersistedState {
+    chartList: ChartEntry[]
+    dateType: DateType
+    showEstimate: boolean
+    estimatePeriod: number
+    targetDateStr: string
+}
+
+const defaultState: PersistedState = {
+    chartList: [
+        {country: "India", category: "EB2"},
+        {country: "China", category: "EB2"},
+    ],
+    dateType: DateType.FilingDate,
+    showEstimate: true,
+    estimatePeriod: 2,
+    targetDateStr: "",
+};
+
+function loadState(): PersistedState {
+    if (typeof window === "undefined") return defaultState;
+    try {
+        const raw = window.localStorage.getItem(STORAGE_KEY);
+        if (!raw) return defaultState;
+        const parsed = JSON.parse(raw);
+        // Only carry over known keys; drop anything extraneous in stored JSON.
+        const result = {...defaultState};
+        for (const key of Object.keys(defaultState) as (keyof PersistedState)[]) {
+            if (parsed[key] !== undefined) {
+                (result as any)[key] = parsed[key];
+            }
+        }
+        // Fall back to the default charts if none were persisted.
+        if (!Array.isArray(result.chartList) || result.chartList.length === 0) {
+            result.chartList = defaultState.chartList;
+        }
+        return result;
+    } catch (e) {
+        console.warn("Failed to load persisted chart state:", e);
+        return defaultState;
     }
 }
 
@@ -286,15 +331,17 @@ function createChartData(chartList : ChartEntry[], minDate : Date, maxDate: Date
 }
 
 function Chart({data}: { data: MonthData[] }) {
+    const persisted = useMemo(loadState, []);
+
     const [country, setCountry] = useState<string>("");
     const [category, setCategory] = useState<string>("");
 
-    const [dateType, setDateType] = useState<DateType>(DateType.FilingDate);
+    const [dateType, setDateType] = useState<DateType>(persisted.dateType);
 
-    const [showEstimate, setShowEstimate] = useState<boolean>(true);
-    const [estimatePeriod, setEstimatePeriod] = useState<number>(2);
+    const [showEstimate, setShowEstimate] = useState<boolean>(persisted.showEstimate);
+    const [estimatePeriod, setEstimatePeriod] = useState<number>(persisted.estimatePeriod);
 
-    const [targetDateStr, setTargetDateStr] = useState<string>("");
+    const [targetDateStr, setTargetDateStr] = useState<string>(persisted.targetDateStr);
 
     const handleDateTypeChange = (event: ChangeEvent<HTMLInputElement>) => {
         setDateType(parseInt(event.target.value) as DateType);
@@ -319,10 +366,19 @@ function Chart({data}: { data: MonthData[] }) {
         setCategory(event.target.value as string);
     };
 
-    const [chartList, setChartList] = useState<ChartEntry[]>([
-        {country: "India", category: "EB2"},
-        {country: "China", category: "EB2"},
-    ]);
+    const [chartList, setChartList] = useState<ChartEntry[]>(persisted.chartList);
+
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        try {
+            window.localStorage.setItem(STORAGE_KEY, JSON.stringify({
+                chartList, dateType, showEstimate, estimatePeriod, targetDateStr,
+            }));
+        } catch (e) {
+            // e.g. private mode / storage full.
+            console.warn("Failed to persist chart state:", e);
+        }
+    }, [chartList, dateType, showEstimate, estimatePeriod, targetDateStr]);
     const addToChart = () => {
         if (country === "" || category === "") {
             return;
