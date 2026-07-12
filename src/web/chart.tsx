@@ -50,6 +50,63 @@ function dateTypeToString(dateType: DateType) {
     }
 }
 
+const numberOfEstimateYears = 10;
+
+interface EntryData {
+    currData: { x: Date; y: number }[]
+    estimate: {
+        slope: number
+        lastDataPoint: { x: Date; y: number }
+        lastDate: Date
+        predictions: { x: Date; y: number }[]
+    } | null
+}
+
+// Build the actual (and optional estimate) data for a single chart entry under a
+// given date type. Extracted so the y-axis range can be computed across both
+// date types, keeping the axis stable when the user toggles between them.
+function buildEntryData(entry: ChartEntry, dateType: DateType,
+                        showEstimate: boolean, estimatePeriod: number): EntryData {
+    const countryLower = entry.country.toLowerCase();
+    const categoryLower = entry.category.toLowerCase();
+    const currData = Data
+        .filter(
+            (x) => (x.country.toLowerCase() === countryLower) &&
+                    (x.category.toLowerCase() === categoryLower))
+        .map((e) => ({
+            x: e.date,
+            y: ((dateType === DateType.FilingDate) ? e.filing_date?.getTime() :
+                        e.final_action_date?.getTime() ?? null),
+        }))
+        .filter((x) => x.y != null)
+    ;
+
+    let estimate: EntryData["estimate"] = null;
+    if (showEstimate && currData.length > 0) {
+        const estimateMonths = estimatePeriod * 12;
+        const recentData = currData.slice(-estimateMonths);
+
+        if (recentData.length >= 2) {
+            const slope = calculateSlope(recentData);
+            const lastDataPoint = currData[currData.length - 1];
+            const lastDate = new Date(lastDataPoint.x);
+            const futureMonths = allMonths(
+                new Date(lastDate.getFullYear(), lastDate.getMonth() + 1, 1),
+                new Date(lastDate.getFullYear() + numberOfEstimateYears, lastDate.getMonth(), 1)
+            );
+
+            const predictions = futureMonths.map(date => ({
+                x: date,
+                y: lastDataPoint.y + slope * (date.getTime() - lastDataPoint.x.getTime())
+            }));
+
+            estimate = {slope, lastDataPoint, lastDate, predictions};
+        }
+    }
+
+    return {currData, estimate};
+}
+
 const STORAGE_KEY = "visa-tracker-chart-state";
 
 interface PersistedState {
@@ -98,7 +155,6 @@ function loadState(): PersistedState {
 function createChartData(chartList : ChartEntry[], minDate : Date, maxDate: Date,
                      dateType: DateType, showEstimate: boolean, estimatePeriod : number,
                      targetDate: Date | null) {
-    const numberOfEstimateYears = 10;
     // Add reference line
     let series = [];
 
@@ -134,17 +190,7 @@ function createChartData(chartList : ChartEntry[], minDate : Date, maxDate: Date
         const categoryLower = entry.category.toLowerCase();
         const countryDisplay = AllCountries.find(c => c.toLowerCase() === countryLower);
         const categoryDisplay = AllVisaTypes.find(c => c.toLowerCase() === categoryLower);
-        const currData = Data
-            .filter(
-                (x) => (x.country.toLowerCase() === countryLower) &&
-                        (x.category.toLowerCase() === categoryLower))
-            .map((entry) => ({
-                x: entry.date,
-                y: ((dateType === DateType.FilingDate) ? entry.filing_date?.getTime() :
-                            entry.final_action_date?.getTime() ?? null),
-            }))
-            .filter((x) => x.y != null)
-        ;
+        const {currData, estimate} = buildEntryData(entry, dateType, showEstimate, estimatePeriod);
 
         series.push({
             name: `${countryDisplay}/${categoryDisplay}`,
@@ -172,58 +218,41 @@ function createChartData(chartList : ChartEntry[], minDate : Date, maxDate: Date
             });
         }
 
-        if (showEstimate && currData.length > 0) {
-            const estimateMonths = estimatePeriod * 12;
-            const recentData = currData.slice(-estimateMonths);
+        if (estimate) {
+            const {slope, lastDataPoint, lastDate, predictions} = estimate;
+            series.push({
+                name: `${countryDisplay}/${categoryDisplay} (Estimate)`,
+                data: [lastDataPoint, ...predictions],
+            });
 
-            if (recentData.length >= 2) {
-                const slope = calculateSlope(recentData);
-                const lastDate = new Date(currData[currData.length - 1].x);
-                const futureMonths = allMonths(
-                    new Date(lastDate.getFullYear(), lastDate.getMonth() + 1, 1),
-                    new Date(lastDate.getFullYear() + numberOfEstimateYears, lastDate.getMonth(), 1)
-                );
+            const lighterColor = randomColor({
+                seed: 2 ** (index + 10),
+                luminosity: 'light',
+                hue: targetColors[index]
+            });
+            allColors.push(lighterColor);
+            targetDashArray.push(3);
 
-                const lastDataPoint = currData[currData.length - 1];
-                const predictions = futureMonths.map(date => ({
-                    x: date,
-                    y: lastDataPoint.y + slope * (date.getTime() - lastDataPoint.x.getTime())
-                }));
-
-                series.push({
-                    name: `${countryDisplay}/${categoryDisplay} (Estimate)`,
-                    data: [lastDataPoint, ...predictions],
-                });
-
-                const lighterColor = randomColor({
-                    seed: 2 ** (index + 10),
-                    luminosity: 'light',
-                    hue: targetColors[index]
-                });
-                allColors.push(lighterColor);
-                targetDashArray.push(3);
-
-                // Annotate where estimate first crosses the target date line
-                // Solve: lastY + slope*(t - lastT) = targetT  =>  t = lastT + (targetT - lastY) / slope
-                if (targetT != null && slope !== 0 && !actualCrossing) {
-                    const lastT = lastDataPoint.x.getTime();
-                    const lastY = lastDataPoint.y;
-                    const tCross = lastT + (targetT - lastY) / slope;
-                    const maxT = new Date(lastDate.getFullYear() + numberOfEstimateYears, lastDate.getMonth(), 1).getTime();
-                    if (tCross > lastT && tCross <= maxT) {
-                        crossingAnnotations.push({
-                            x: tCross,
-                            y: targetT,
-                            marker: { size: 4, fillColor: lighterColor, strokeColor: targetColors[index] },
-                            label: {
-                                text: `${countryDisplay}/${categoryDisplay} ~${displayDate(new Date(tCross), true)}`,
-                                textAnchor: 'start',
-                                offsetX: 4,
-                                offsetY: -4,
-                                style: { color: targetColors[index], background: 'white', border: 0, fontSize: '11px' },
-                            },
-                        });
-                    }
+            // Annotate where estimate first crosses the target date line
+            // Solve: lastY + slope*(t - lastT) = targetT  =>  t = lastT + (targetT - lastY) / slope
+            if (targetT != null && slope !== 0 && !actualCrossing) {
+                const lastT = lastDataPoint.x.getTime();
+                const lastY = lastDataPoint.y;
+                const tCross = lastT + (targetT - lastY) / slope;
+                const maxT = new Date(lastDate.getFullYear() + numberOfEstimateYears, lastDate.getMonth(), 1).getTime();
+                if (tCross > lastT && tCross <= maxT) {
+                    crossingAnnotations.push({
+                        x: tCross,
+                        y: targetT,
+                        marker: { size: 4, fillColor: lighterColor, strokeColor: targetColors[index] },
+                        label: {
+                            text: `${countryDisplay}/${categoryDisplay} ~${displayDate(new Date(tCross), true)}`,
+                            textAnchor: 'start',
+                            offsetX: 4,
+                            offsetY: -4,
+                            style: { color: targetColors[index], background: 'white', border: 0, fontSize: '11px' },
+                        },
+                    });
                 }
             }
         }
@@ -256,6 +285,26 @@ function createChartData(chartList : ChartEntry[], minDate : Date, maxDate: Date
         targetDashArray.push(4);
     }
 
+    // Fix the y-axis range across BOTH date types so the axis doesn't jump when
+    // the user toggles between Filing and Final Action dates (Final Action dates
+    // are more backlogged, so they span a different, older range).
+    const collectYValues = (dt: DateType): number[] => {
+        const ys = [minDate.getTime(), referenceEndDate.getTime()];
+        if (targetDate) ys.push(targetDate.getTime());
+        for (const entry of chartList) {
+            const {currData, estimate} = buildEntryData(entry, dt, showEstimate, estimatePeriod);
+            for (const pt of currData) ys.push(pt.y);
+            if (estimate) for (const pt of estimate.predictions) ys.push(pt.y);
+        }
+        return ys;
+    };
+    const combinedYValues = [
+        ...collectYValues(DateType.FinalActionDate),
+        ...collectYValues(DateType.FilingDate),
+    ];
+    const yMin = Math.min(...combinedYValues);
+    const yMax = Math.max(...combinedYValues);
+
     const options = {
         stroke: {
             width: 2,
@@ -284,6 +333,8 @@ function createChartData(chartList : ChartEntry[], minDate : Date, maxDate: Date
         },
         colors: allColors,
         yaxis: {
+            min: yMin,
+            max: yMax,
             labels : {
                 formatter: function (value) {
                     return displayDate(new Date(value), true);
