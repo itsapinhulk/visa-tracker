@@ -8,7 +8,7 @@ import Radio from '@mui/material/Radio';
 import RadioGroup from '@mui/material/RadioGroup';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import FormLabel from '@mui/material/FormLabel';
-import {ChangeEvent, useEffect, useMemo, useState} from "react";
+import {ChangeEvent, useCallback, useEffect, useMemo, useRef, useState} from "react";
 import ApexChart from "react-apexcharts";
 import Box from '@mui/material/Box';
 import randomColor from 'randomcolor';
@@ -17,6 +17,11 @@ import {AllCountries, AllVisaTypes, Data, displayDate, MaxDate, MinDate, MonthDa
 interface ChartEntry {
     country: string
     category: string
+}
+
+interface ZoomRange {
+    min: number
+    max: number
 }
 
 function calculateSlope(data: { x: Date; y: number }[]): { slope: number; intercept: number } {
@@ -154,7 +159,9 @@ function loadState(): PersistedState {
 
 function createChartData(chartList : ChartEntry[], minDate : Date, maxDate: Date,
                      dateType: DateType, showEstimate: boolean, estimatePeriod : number,
-                     targetDate: Date | null) {
+                     targetDate: Date | null,
+                     zoomRange: ZoomRange | null,
+                     onZoomChange: (range: ZoomRange | null) => void) {
     // Add reference line
     let series = [];
 
@@ -314,6 +321,8 @@ function createChartData(chartList : ChartEntry[], minDate : Date, maxDate: Date
         markers: { size: 0},
         xaxis: {
             type: 'datetime',
+            // Reapply any retained zoom window so toggling date type keeps the view.
+            ...(zoomRange ? {min: zoomRange.min, max: zoomRange.max} : {}),
         },
         tooltip: {
             x: {
@@ -349,7 +358,25 @@ function createChartData(chartList : ChartEntry[], minDate : Date, maxDate: Date
             },
             zoom: {
                 autoScaleYaxis: true,
-            }
+            },
+            events: {
+                zoomed: (_chartContext, {xaxis}) => {
+                    if (xaxis && typeof xaxis.min === 'number' && typeof xaxis.max === 'number') {
+                        onZoomChange({min: xaxis.min, max: xaxis.max});
+                    } else {
+                        // Reset zoom clears min/max; drop the retained window.
+                        onZoomChange(null);
+                    }
+                },
+                scrolled: (_chartContext, {xaxis}) => {
+                    if (xaxis && typeof xaxis.min === 'number' && typeof xaxis.max === 'number') {
+                        onZoomChange({min: xaxis.min, max: xaxis.max});
+                    }
+                },
+                beforeResetZoom: () => {
+                    onZoomChange(null);
+                },
+            },
         },
         grid: {
             position: 'front',
@@ -458,15 +485,25 @@ function Chart({data}: { data: MonthData[] }) {
         return isNaN(d.getTime()) ? null : d;
     }, [targetDateStr]);
 
+    // Retain the current zoom window across re-renders (e.g. date type toggle).
+    // Held in a ref so capturing a zoom doesn't re-render and fight the user;
+    // it's read when the chart is rebuilt for another reason.
+    const zoomRangeRef = useRef<ZoomRange | null>(null);
+    const handleZoomChange = useCallback((range: ZoomRange | null) => {
+        zoomRangeRef.current = range;
+    }, []);
+
     const chartDisplay = useMemo(
         () => createChartData(chartList, MinDate, MaxDate, dateType,
-                            showEstimate, estimatePeriod, targetDate),
-        [chartList, MinDate, MaxDate, dateType, showEstimate, estimatePeriod, targetDate]
+                            showEstimate, estimatePeriod, targetDate,
+                            zoomRangeRef.current, handleZoomChange),
+        [chartList, MinDate, MaxDate, dateType, showEstimate, estimatePeriod, targetDate, handleZoomChange]
     );
 
     const resetChart = () => {
         setChartList([]);
         setTargetDateStr("");
+        zoomRangeRef.current = null;
     }
     return (<div>
         <Grid container spacing={2} columns={24}
