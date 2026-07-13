@@ -4,6 +4,7 @@ import TextField from '@mui/material/TextField';
 import FormGroup from '@mui/material/FormGroup';
 import Checkbox from '@mui/material/Checkbox';
 import Button from '@mui/material/Button';
+import Chip from '@mui/material/Chip';
 import Radio from '@mui/material/Radio';
 import RadioGroup from '@mui/material/RadioGroup';
 import FormControlLabel from '@mui/material/FormControlLabel';
@@ -479,6 +480,12 @@ function Chart({data}: { data: MonthData[] }) {
         });
     }
 
+    const removeFromChart = (target: ChartEntry) => {
+        setChartList((x: ChartEntry[]) => x.filter(
+            (entry) => !((entry.country.toLowerCase() === target.country.toLowerCase()) &&
+                         (entry.category.toLowerCase() === target.category.toLowerCase()))));
+    }
+
     const targetDate = useMemo(() => {
         if (!targetDateStr) return null;
         const d = new Date(targetDateStr);
@@ -501,7 +508,8 @@ function Chart({data}: { data: MonthData[] }) {
     );
 
     const resetChart = () => {
-        setChartList([]);
+        // If already empty, restore the default combinations instead of clearing.
+        setChartList((x) => x.length === 0 ? [...defaultState.chartList] : []);
         setTargetDateStr("");
         zoomRangeRef.current = null;
     }
@@ -554,6 +562,37 @@ function Chart({data}: { data: MonthData[] }) {
                 </Button>
             </Grid>
         </Grid>
+        {chartList.length > 0 && (
+            <Box sx={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                justifyContent: 'center',
+                gap: 1,
+                mt: 2,
+            }}>
+                {chartList.map((entry) => {
+                    const countryDisplay = AllCountries.find(
+                        c => c.toLowerCase() === entry.country.toLowerCase()) ?? entry.country;
+                    const categoryDisplay = AllVisaTypes.find(
+                        c => c.toLowerCase() === entry.category.toLowerCase()) ?? entry.category;
+                    return (
+                        <Chip
+                            key={`${entry.country}/${entry.category}`}
+                            label={`${countryDisplay}/${categoryDisplay}`}
+                            onDelete={() => removeFromChart(entry)}
+                            sx={{
+                                '& .MuiChip-deleteIcon': {
+                                    color: '#c47b7b',
+                                    '&:hover': {
+                                        color: 'error.main',
+                                    },
+                                },
+                            }}
+                        />
+                    );
+                })}
+            </Box>
+        )}
         <Grid container spacing={2} columns={24}
               alignItems="center"
               justifyContent="center"
