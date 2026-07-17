@@ -40,7 +40,7 @@ jobs:
       - name: Script
         run: |
           mkdir -p ./cache
-          ./update_data.sh --ignore_404 --aggressive --fallback
+          ./update_data.sh --ignore_404 --aggressive --fallback --ignore-fallback-failure
           git status
 
       - name: Create Pull Request

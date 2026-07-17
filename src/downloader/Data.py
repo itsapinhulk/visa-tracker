@@ -196,7 +196,8 @@ class Data:
       f"-{self.year}.html"
     )
 
-  def download(self, ignore_404: bool = False, fallback: bool = False):
+  def download(self, ignore_404: bool = False, fallback: bool = False,
+               ignore_fallback_failure: bool = False):
     web_page = self._getWebPage()
 
     if not self.path.exists():
@@ -211,6 +212,12 @@ class Data:
       if status == 403 and fallback:
         print(f"Got 403 for {web_page}; retrying with browser fallback")
         status, html = _browserFetch(web_page)
+        # The browser may still fail to clear the challenge (e.g. from a flagged
+        # datacenter IP). With --ignore-fallback-failure, skip instead of failing
+        # the whole run so any pages that did succeed still go through.
+        if status == 403 and ignore_fallback_failure:
+          print(f"Skipping {web_page} (browser fallback could not clear the challenge)")
+          return False
 
       if status == 404 and ignore_404:
         print(f"Skipping {web_page} (404)")
@@ -400,9 +407,12 @@ def _browserFetch(url: str, timeout_s: int = 90) -> tuple[int, str]:
                 pass
         time.sleep(1.5)
 
-      raise Exception(
-          f"Timed out clearing Cloudflare challenge for {url} "
-          f"(last document status {doc_status['code']})")
+      # Challenge never cleared within the timeout. Return the last document
+      # status (typically 403) so the caller can decide whether to fail or, with
+      # --ignore-fallback-failure, skip this page.
+      print(f"Timed out clearing Cloudflare challenge for {url} "
+            f"(last document status {doc_status['code']})")
+      return doc_status["code"] or 403, page.content()
     finally:
       browser.close()
 

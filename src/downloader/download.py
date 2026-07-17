@@ -23,8 +23,11 @@ _SupportedDateInputs = click.DateTime(formats=['%Y-%m', '%Y%m'])
 @click.option('--fallback', is_flag=True, default=False,
               help='On a 403 (Cloudflare challenge), retry via a real browser. '
                    'Requires patchright + a browser (see update_data.sh).')
+@click.option('--ignore-fallback-failure', is_flag=True, default=False,
+              help='If the browser fallback still gets a 403 (challenge not '
+                   'cleared), skip that page instead of failing the run.')
 def _main(cache_dir, data_dir, start_date = None, end_date = None, ignore_404 = False,
-          aggressive = False, fallback = False):
+          aggressive = False, fallback = False, ignore_fallback_failure = False):
   cache_dir = pathlib.Path(cache_dir).absolute()
   data_dir = pathlib.Path(data_dir).absolute()
 
@@ -52,7 +55,8 @@ def _main(cache_dir, data_dir, start_date = None, end_date = None, ignore_404 = 
 
 
   processDates(start_date=start_date, end_date=end_date, cache_dir=cache_dir, data_dir=data_dir,
-               ignore_404=ignore_404, fallback=fallback)
+               ignore_404=ignore_404, fallback=fallback,
+               ignore_fallback_failure=ignore_fallback_failure)
 
 if __name__ == '__main__':
     _main()
