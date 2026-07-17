@@ -5,6 +5,7 @@ import datetime
 import enum
 import pathlib
 import re
+import time
 
 import requests
 
@@ -195,21 +196,30 @@ class Data:
       f"-{self.year}.html"
     )
 
-  def download(self, ignore_404: bool = False):
+  def download(self, ignore_404: bool = False, fallback: bool = False):
     web_page = self._getWebPage()
 
     if not self.path.exists():
       print(f"Downloading {web_page}")
       resp = requests.get(web_page)
-      if resp.status_code == 404 and ignore_404:
+      status = resp.status_code
+      html = resp.text
+
+      # travel.state.gov now hides pages behind a Cloudflare "Verify you are
+      # human" (Turnstile) challenge, which answers a plain request with 403.
+      # With --fallback, clear it by driving a real browser (see _browserFetch).
+      if status == 403 and fallback:
+        print(f"Got 403 for {web_page}; retrying with browser fallback")
+        status, html = _browserFetch(web_page)
+
+      if status == 404 and ignore_404:
         print(f"Skipping {web_page} (404)")
         return False
-      if resp.status_code != 200:
-        raise Exception(f"Failed to download {web_page}, got status code {resp.status_code}")
+      if status != 200:
+        raise Exception(f"Failed to download {web_page}, got status code {status}")
 
-      page_content = resp.content
-      with open(self.path, "wb") as f:
-        f.write(page_content)
+      with open(self.path, "w", encoding="utf-8") as f:
+        f.write(html)
       return True
     else:
       print(f"Skipping download {web_page}")
@@ -331,6 +341,70 @@ class Data:
       year += 2000
 
     return datetime.date(year=year, month=month, day=day)
+
+
+_TURNSTILE_HOST = "challenges.cloudflare.com"
+
+
+def _browserFetch(url: str, timeout_s: int = 90) -> tuple[int, str]:
+  """Fetch a Cloudflare-protected bulletin page with a real browser.
+
+  travel.state.gov now sits behind a Cloudflare "Verify you are human"
+  (Turnstile) challenge that a plain HTTP request cannot pass -- it returns a
+  403 challenge page regardless of headers or User-Agent. We drive a headed
+  Chromium (via patchright) and click the Turnstile checkbox to clear the
+  challenge. On a headless server run this under a virtual display, e.g.
+  `xvfb-run` (see update_data.sh); pure headless mode gets hard-blocked.
+
+  Returns (status, html): 200 with the page HTML on success, or 404 when the
+  bulletin does not exist yet (used with --ignore_404 to probe future months).
+  """
+  from patchright.sync_api import sync_playwright
+
+  with sync_playwright() as p:
+    browser = p.chromium.launch(headless=False, args=["--no-sandbox"])
+    try:
+      page = browser.new_context(
+          viewport={"width": 1000, "height": 800}, locale="en-US").new_page()
+
+      # Track the status of the main-document navigations for this URL. A
+      # missing bulletin resolves 307 -> 403 (challenge) -> 404 once cleared.
+      doc_status = {"code": None}
+      def _track(resp):
+        if resp.url.split("?")[0] == url and resp.request.resource_type == "document":
+          doc_status["code"] = resp.status
+      page.on("response", _track)
+
+      page.goto(url, wait_until="domcontentloaded", timeout=timeout_s * 1000)
+
+      deadline = time.time() + timeout_s
+      while time.time() < deadline:
+        title = page.title().lower()
+        html = page.content()
+
+        # Real bulletin page has loaded (challenge cleared, tables present).
+        if "just a moment" not in title and "<table" in html.lower():
+          return 200, html
+        # Bulletin does not exist (e.g. probing a not-yet-published month).
+        if doc_status["code"] == 404 or "page not found" in title:
+          return 404, html
+
+        # Click the Turnstile checkbox if the challenge is showing.
+        for frame in page.frames:
+          if _TURNSTILE_HOST in frame.url:
+            box = frame.query_selector("input[type=checkbox]")
+            if box is not None:
+              try:
+                box.click()
+              except Exception:
+                pass
+        time.sleep(1.5)
+
+      raise Exception(
+          f"Timed out clearing Cloudflare challenge for {url} "
+          f"(last document status {doc_status['code']})")
+    finally:
+      browser.close()
 
 
 def _ValidateData(allData : list[DataEntry]):

@@ -20,7 +20,11 @@ _SupportedDateInputs = click.DateTime(formats=['%Y-%m', '%Y%m'])
               help='Skip pages that return a 404 instead of raising an error.')
 @click.option('--aggressive', is_flag=True, default=False,
               help='Always query the next month regardless of current day.')
-def _main(cache_dir, data_dir, start_date = None, end_date = None, ignore_404 = False, aggressive = False):
+@click.option('--fallback', is_flag=True, default=False,
+              help='On a 403 (Cloudflare challenge), retry via a real browser. '
+                   'Requires patchright + a browser (see update_data.sh).')
+def _main(cache_dir, data_dir, start_date = None, end_date = None, ignore_404 = False,
+          aggressive = False, fallback = False):
   cache_dir = pathlib.Path(cache_dir).absolute()
   data_dir = pathlib.Path(data_dir).absolute()
 
@@ -48,7 +52,7 @@ def _main(cache_dir, data_dir, start_date = None, end_date = None, ignore_404 = 
 
 
   processDates(start_date=start_date, end_date=end_date, cache_dir=cache_dir, data_dir=data_dir,
-               ignore_404=ignore_404)
+               ignore_404=ignore_404, fallback=fallback)
 
 if __name__ == '__main__':
     _main()

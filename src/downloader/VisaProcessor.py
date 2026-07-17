@@ -8,7 +8,7 @@ from .Data import Data, DataEntry, VisaCategory, CountryCategory
 
 def processDates(*, start_date: datetime.date, end_date: datetime.date,
                  cache_dir: pathlib.Path, data_dir: pathlib.Path,
-                 ignore_404: bool = False):
+                 ignore_404: bool = False, fallback: bool = False):
   # Figure out all the dates we need to process
   all_dates = []
   curr_date = datetime.date(year=start_date.year, month=start_date.month, day=1)
@@ -34,7 +34,7 @@ def processDates(*, start_date: datetime.date, end_date: datetime.date,
     all_data.append(data)
 
   for data in all_data:
-    if data.download(ignore_404=ignore_404):
+    if data.download(ignore_404=ignore_404, fallback=fallback):
       time.sleep(0.1)
 
   for data in all_data:
