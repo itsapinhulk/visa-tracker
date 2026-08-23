@@ -8,4 +8,5 @@ dependencies = [
     "beautifulsoup4",
     "click",
     "curl-cffi",
+    "pdfplumber",
 ]

@@ -82,7 +82,7 @@ class VisaCategory(enum.Enum):
 
     visa_type = _SanitizeTextData(visa_type)
 
-    if visa_type in ['family- sponsored', 'family']:
+    if visa_type in FAMILY_CHART_NAMES:
       if inpStr in ['f1', '1st']:
         return VisaCategory.F1
       elif inpStr in ['f2a', '2a*', '2a', 'f2a*']:
@@ -94,8 +94,7 @@ class VisaCategory(enum.Enum):
       elif inpStr in ['f4', '4th', '4rd']:
         return VisaCategory.F4
 
-    elif visa_type in ['employment- based', 'employment-based', 'employment - based',
-                       'employment -based', 'employment based']:
+    elif visa_type in EMPLOYMENT_CHART_NAMES:
       if inpStr in ['1st']:
         return VisaCategory.EB1
       elif inpStr in ['2nd']:
@@ -141,6 +140,27 @@ class VisaCategory(enum.Enum):
 
     raise Exception(f"Unknown visa category {inpStr.encode()} with header {visa_type.encode()}")
 
+# What the column above the visa categories is called, which is what tells a
+# family chart and an employment chart apart.
+FAMILY_CHART_NAMES = ['family- sponsored', 'family']
+EMPLOYMENT_CHART_NAMES = ['employment- based', 'employment-based', 'employment - based',
+                          'employment -based', 'employment based']
+
+
+def IsChartName(text: str) -> bool:
+  return ChartKind(text) is not None
+
+
+def ChartKind(text: str) -> str | None:
+  """Which of the two charts this heading names, if either."""
+  text = _SanitizeTextData(text)
+  if text in FAMILY_CHART_NAMES:
+    return 'family'
+  if text in EMPLOYMENT_CHART_NAMES:
+    return 'employment'
+  return None
+
+
 @dataclasses.dataclass
 class DataEntry:
   year: int
@@ -170,6 +190,16 @@ class RawTable:
   rows: list[list[str]]
   is_final_action_date: bool
   debug: object = None
+
+
+# Cells a bulletin published with a character missing, spelled out here because
+# the text simply is not in the file to read. Keyed by the month it appeared in,
+# the category it appeared against, and exactly what came out.
+MALFORMED_DATES = {
+  # October 2025 dropped the J of Mexico's second preference filing date; the
+  # glyph is absent from the PDF, and the HTML page gives it as 15JUL24.
+  (2025, 10, VisaCategory.EB2, '15UL24'): '15JUL24',
+}
 
 
 MONTH_TO_STR = {
@@ -261,7 +291,9 @@ class Source:
 
       for idx, entry in enumerate(row[1:]):
         country = all_countries[idx]
-        date_val = self._ConvertPageDate(entry.strip())
+        cell = entry.strip()
+        cell = MALFORMED_DATES.get((self.year, self.month, visa_type, cell.upper()), cell)
+        date_val = self._ConvertPageDate(cell)
         ret.append(DataEntry(year = self.year, month=self.month, country=country,
                              visa_type=visa_type, is_final_action_date=table.is_final_action_date,
                              date=date_val))
@@ -298,8 +330,14 @@ class Source:
       date_str = '08may97'
 
     day_str = date_str[0:2]
+    month_str = date_str[2:5].upper()
+    if not day_str.isdigit() or month_str not in self._MONTH_TO_INT:
+      # Worth saying plainly: a bulletin PDF occasionally drops a glyph, and
+      # the date it was meant to be is not recoverable from what is left.
+      raise Exception(f"Unreadable date {date_str.encode()} in {self.year}/{self.month}")
+
     day = int(day_str)
-    month = self._MONTH_TO_INT[date_str[2:5].upper()]
+    month = self._MONTH_TO_INT[month_str]
     year = int(date_str[5:7])
     if year >= 80 :
       year += 1900
