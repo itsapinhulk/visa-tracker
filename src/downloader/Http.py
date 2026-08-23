@@ -12,6 +12,21 @@ _TURNSTILE_HOST = "challenges.cloudflare.com"
 # identical request carrying a real browser's fingerprint is served.
 _IMPERSONATE = "chrome131"
 
+# Smallest gap between two requests, whichever method makes them. Paces every
+# request rather than every month: one month can take several attempts.
+_REQUEST_INTERVAL_S = 0.1
+_last_request = 0.0
+
+
+def _pace():
+  """Hold off until _REQUEST_INTERVAL_S has passed since the last request."""
+  global _last_request
+
+  wait = _last_request + _REQUEST_INTERVAL_S - time.monotonic()
+  if wait > 0:
+    time.sleep(wait)
+  _last_request = time.monotonic()
+
 
 class Fetcher:
   """How to pull a URL down off the wire.
@@ -38,6 +53,7 @@ class RequestsFetcher(Fetcher):
 
   def fetch(self, url: str) -> tuple[int | None, bytes]:
     print(f"Downloading {url} with a plain HTTP request")
+    _pace()
     resp = requests.get(url)
     return resp.status_code, resp.content
 
@@ -51,6 +67,7 @@ class ImpersonatingFetcher(Fetcher):
 
   def fetch(self, url: str) -> tuple[int | None, bytes]:
     print(f"Downloading {url} with a {_IMPERSONATE} TLS fingerprint")
+    _pace()
     resp = curl_requests.get(url, impersonate=_IMPERSONATE)
     return resp.status_code, resp.content
 
@@ -64,6 +81,7 @@ class BrowserFetcher(Fetcher):
   """
 
   def fetch(self, url: str) -> tuple[int | None, bytes]:
+    _pace()
     status, html = browserFetch(url)
     return status, html.encode("utf-8")
 

@@ -5,7 +5,12 @@ import click
 
 from .HtmlSource import HtmlSource
 from .Http import BrowserFetcher, ChainFetcher, ImpersonatingFetcher, RequestsFetcher
+from .PdfSource import PdfSource
 from .VisaProcessor import processDates
+
+# Preference order for --any-source. HTML first because it is the only form
+# anything knows how to read; the PDF is the more reliable download.
+_ANY_SOURCE_ORDER = [HtmlSource, PdfSource]
 
 _SupportedDateInputs = click.DateTime(formats=['%Y-%m', '%Y%m'])
 
@@ -22,6 +27,15 @@ _SupportedDateInputs = click.DateTime(formats=['%Y-%m', '%Y%m'])
               help='Skip pages that return a 404 instead of raising an error.')
 @click.option('--aggressive', is_flag=True, default=False,
               help='Always query the next month regardless of current day.')
+@click.option('--ignore-cached', is_flag=True, default=False,
+              help='Download every bulletin again, ignoring the cache.')
+@click.option('--html', 'html', is_flag=True, default=False,
+              help='Read the bulletin from the HTML page (the default).')
+@click.option('--pdf', 'pdf', is_flag=True, default=False,
+              help='Read the bulletin from the PDF.')
+@click.option('--any-source', 'any_source', is_flag=True, default=False,
+              help='Try each form of the bulletin in turn, using whichever one '
+                   'the site will hand over.')
 @click.option('--fallback', is_flag=True, default=False,
               help='On a 403 (Cloudflare challenge), retry via a real browser. '
                    'Requires patchright + a browser (see update_data.sh).')
@@ -29,7 +43,11 @@ _SupportedDateInputs = click.DateTime(formats=['%Y-%m', '%Y%m'])
               help='If no download method can retrieve a page, skip it instead '
                    'of failing the run.')
 def _main(cache_dir, data_dir, start_date = None, end_date = None, ignore_404 = False,
-          aggressive = False, fallback = False, ignore_fallback_failure = False):
+          aggressive = False, ignore_cached = False, html = False, pdf = False,
+          any_source = False, fallback = False, ignore_fallback_failure = False):
+  if sum([html, pdf, any_source]) > 1:
+    raise click.UsageError('--html, --pdf and --any-source are mutually exclusive.')
+
   cache_dir = pathlib.Path(cache_dir).absolute()
   data_dir = pathlib.Path(data_dir).absolute()
 
@@ -64,8 +82,16 @@ def _main(cache_dir, data_dir, start_date = None, end_date = None, ignore_404 = 
     fetchers.append(BrowserFetcher())
   fetcher = ChainFetcher(fetchers, ignore_failure=ignore_fallback_failure)
 
+  if pdf:
+    source_classes = [PdfSource]
+  elif any_source:
+    source_classes = _ANY_SOURCE_ORDER
+  else:
+    source_classes = [HtmlSource]
+
   processDates(start_date=start_date, end_date=end_date, cache_dir=cache_dir, data_dir=data_dir,
-               source_cls=HtmlSource, fetcher=fetcher, ignore_404=ignore_404)
+               source_classes=source_classes, fetcher=fetcher, ignore_404=ignore_404,
+               ignore_cached=ignore_cached)
 
 if __name__ == '__main__':
     _main()

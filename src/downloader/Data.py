@@ -214,27 +214,20 @@ class Source:
     """Parse the cached file at self.path into RawTables."""
     raise NotImplementedError
 
-  def download(self, fetcher, ignore_404: bool = False):
-    web_page = self.url()
+  def download(self, fetcher):
+    """Fetch this month's document into the cache, overwriting what is there.
 
-    if self.path.exists():
-      print(f"Skipping download {web_page}")
-      return False
+    Returns the HTTP status: 200 when the document was written, 404 when the
+    site does not have it, None when the fetcher gave up. Whether it was worth
+    downloading at all, and what a failure means -- give up, or reach for
+    another source -- is the caller's call.
+    """
+    status, content = fetcher.fetch(self.url())
+    if status == 200:
+      with open(self.path, "wb") as f:
+        f.write(content)
 
-    status, content = fetcher.fetch(web_page)
-
-    if status is None:
-      # Fetcher decided to skip this one rather than fail the run.
-      return False
-    if status == 404 and ignore_404:
-      print(f"Skipping {web_page} (404)")
-      return False
-    if status != 200:
-      raise Exception(f"Failed to download {web_page}, got status code {status}")
-
-    with open(self.path, "wb") as f:
-      f.write(content)
-    return True
+    return status
 
   def __str__(self):
     return f"{type(self).__name__}({self.year}/{self.month}, {self.path}"

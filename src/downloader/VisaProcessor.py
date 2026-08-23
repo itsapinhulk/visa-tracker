@@ -1,7 +1,6 @@
 import csv
 import datetime
 import pathlib
-import time
 
 from .Data import MONTH_TO_STR, DataEntry, Source, VisaCategory, CountryCategory
 from .Http import Fetcher
@@ -9,8 +8,8 @@ from .Http import Fetcher
 
 def processDates(*, start_date: datetime.date, end_date: datetime.date,
                  cache_dir: pathlib.Path, data_dir: pathlib.Path,
-                 source_cls: type[Source], fetcher: Fetcher,
-                 ignore_404: bool = False):
+                 source_classes: list[type[Source]], fetcher: Fetcher,
+                 ignore_404: bool = False, ignore_cached: bool = False):
   # Figure out all the dates we need to process
   all_dates = []
   curr_date = datetime.date(year=start_date.year, month=start_date.month, day=1)
@@ -31,18 +30,15 @@ def processDates(*, start_date: datetime.date, end_date: datetime.date,
   for curr_date in all_dates:
     cache_year = cache_dir / curr_date.strftime("%Y")
     cache_year.mkdir(parents=True, exist_ok=True)
-    cache_file = cache_year / (curr_date.strftime("%m_%B") + source_cls.CACHE_SUFFIX)
-    data = source_cls(curr_date, cache_file)
-    all_data.append(data)
+    sources = [cls(curr_date, cache_year / (curr_date.strftime("%m_%B") + cls.CACHE_SUFFIX))
+               for cls in source_classes]
+
+    available = _firstAvailable(sources, fetcher=fetcher, ignore_404=ignore_404,
+                                ignore_cached=ignore_cached)
+    if available is not None:
+      all_data.append(available)
 
   for data in all_data:
-    if data.download(fetcher, ignore_404=ignore_404):
-      time.sleep(0.1)
-
-  for data in all_data:
-    if not data.path.exists() and ignore_404:
-      print(f"Skipping data for {data.year}/{data.month} (no file)")
-      continue
     print(f"Processing data for {data.year}/{data.month}")
     [field_names, csv_data] = _convertToCsv(all_entries=data.extract())
 
@@ -55,6 +51,47 @@ def processDates(*, start_date: datetime.date, end_date: datetime.date,
                               fieldnames=field_names)
       writer.writeheader()
       writer.writerows(csv_data)
+
+
+def _firstAvailable(sources: list[Source], *, fetcher: Fetcher, ignore_404: bool,
+                    ignore_cached: bool = False):
+  """Settle on the first source this month can actually be read from.
+
+  A source already in the cache is used as-is. Otherwise travel.state.gov is
+  asked for it -- and since the site does not serve every form of a bulletin
+  the same way (one may sit behind a challenge, or not be published at all), a
+  refusal for one form says nothing about the next, so each is tried before a
+  month is given up on. Sources are considered in preference order, so a
+  preferred source is downloaded rather than falling back to a cached lesser
+  one. Returns None when the month should be skipped.
+  """
+  statuses = []
+
+  for source in sources:
+    if not ignore_cached and source.path.exists():
+      print(f"Skipping download {source.url()}")
+      return source
+
+    status = source.download(fetcher)
+    statuses.append(status)
+
+    if status == 200:
+      return source
+
+  month = f"{sources[0].year}/{sources[0].month}"
+
+  if all(status == 404 for status in statuses):
+    if ignore_404:
+      print(f"Skipping data for {month} (404)")
+      return None
+  elif None in statuses:
+    # A fetcher gave up rather than fail the run (--ignore-fallback-failure).
+    print(f"Skipping data for {month} (could not be downloaded)")
+    return None
+
+  detail = ", ".join(f"{type(source).__name__} got {status}"
+                     for source, status in zip(sources, statuses))
+  raise Exception(f"Failed to download {month}: {detail}")
 
 
 def _convertToCsv(all_entries: list[DataEntry]):
