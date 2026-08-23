@@ -5,11 +5,6 @@ import datetime
 import enum
 import pathlib
 import re
-import time
-
-import requests
-
-import bs4
 
 class CountryCategory(enum.Enum):
   INDIA = 'India'
@@ -155,96 +150,103 @@ class DataEntry:
   is_final_action_date: bool
   date: datetime.date
 
-class Data:
+
+@dataclasses.dataclass
+class RawTable:
+  """One cut-off date table, flattened out of whatever source produced it.
+
+  Sources (HTML, PDF) differ wildly in how a table has to be located and how
+  its header is laid out, so each source resolves that itself and hands back
+  plain text cells. Everything downstream -- category lookup, date parsing,
+  DataEntry construction -- is shared (see Source.tableToEntries).
+
+  headers: first cell is the visa type header ("Employment- based"), the rest
+           are the country columns.
+  rows:    data rows, each starting with the visa category label ("2nd").
+  debug:   source-specific context (raw table markup, page number) printed when
+           a row fails to parse.
+  """
+  headers: list[str]
+  rows: list[list[str]]
+  is_final_action_date: bool
+  debug: object = None
+
+
+MONTH_TO_STR = {
+  1: "january",
+  2: "february",
+  3: "march",
+  4: "april",
+  5: "may",
+  6: "june",
+  7: "july",
+  8: "august",
+  9: "september",
+  10: "october",
+  11: "november",
+  12: "december",
+}
+
+
+class Source:
+  """Base class for a bulletin source: locate a month, yield its tables.
+
+  Subclasses implement url() and rawTables(); download(), extract() and the
+  parsing helpers below are shared. How the URL is actually retrieved is not a
+  source's concern -- that is a Fetcher (see Http.py).
+  """
+
+  # File extension used for this source's cache entries.
+  CACHE_SUFFIX = None
+
   def __init__(self, target: datetime.date, path: pathlib.Path):
     self.year = target.year
     self.month = target.month
     self.path = path
 
-  MONTH_TO_STR = {
-    1: "january",
-    2: "february",
-    3: "march",
-    4: "april",
-    5: "may",
-    6: "june",
-    7: "july",
-    8: "august",
-    9: "september",
-    10: "october",
-    11: "november",
-    12: "december",
-  }
   def _getMonthStr(self):
-    return self.MONTH_TO_STR[self.month]
+    return MONTH_TO_STR[self.month]
 
-  def _getWebPage(self):
+  def url(self) -> str:
+    raise NotImplementedError
 
-    url_suffix = "visa-bulletin-for-"
-    if ((self.year == 2012) and (self.month == 10)) \
-        or ((self.year == 2009) and (self.month == 3)) \
-        or ((self.year == 2009) and (self.month in [9, 10, 11])) \
-        :
-      url_suffix = "visa-bulletin-"
+  def rawTables(self) -> list[RawTable]:
+    """Parse the cached file at self.path into RawTables."""
+    raise NotImplementedError
 
-    fiscal_year = self.year + 1 if self.month >= 10 else self.year
-    return (
-      f"https://travel.state.gov/content/travel/en/legal/visa-law0/visa-bulletin/"
-      f"{fiscal_year}"
-      f"/{url_suffix}"
-      f"{self._getMonthStr()}"
-      f"-{self.year}.html"
-    )
+  def download(self, fetcher, ignore_404: bool = False):
+    web_page = self.url()
 
-  def download(self, ignore_404: bool = False, fallback: bool = False,
-               ignore_fallback_failure: bool = False):
-    web_page = self._getWebPage()
-
-    if not self.path.exists():
-      print(f"Downloading {web_page}")
-      resp = requests.get(web_page)
-      status = resp.status_code
-      html = resp.text
-
-      # travel.state.gov now hides pages behind a Cloudflare "Verify you are
-      # human" (Turnstile) challenge, which answers a plain request with 403.
-      # With --fallback, clear it by driving a real browser (see _browserFetch).
-      if status == 403 and fallback:
-        print(f"Got 403 for {web_page}; retrying with browser fallback")
-        status, html = _browserFetch(web_page)
-        # The browser may still fail to clear the challenge (e.g. from a flagged
-        # datacenter IP). With --ignore-fallback-failure, skip instead of failing
-        # the whole run so any pages that did succeed still go through.
-        if status == 403 and ignore_fallback_failure:
-          print(f"Skipping {web_page} (browser fallback could not clear the challenge)")
-          return False
-
-      if status == 404 and ignore_404:
-        print(f"Skipping {web_page} (404)")
-        return False
-      if status != 200:
-        raise Exception(f"Failed to download {web_page}, got status code {status}")
-
-      with open(self.path, "w", encoding="utf-8") as f:
-        f.write(html)
-      return True
-    else:
+    if self.path.exists():
       print(f"Skipping download {web_page}")
+      return False
 
-    return False
+    print(f"Downloading {web_page}")
+    status, content = fetcher.fetch(web_page)
+
+    if status is None:
+      # Fetcher decided to skip this one rather than fail the run.
+      return False
+    if status == 404 and ignore_404:
+      print(f"Skipping {web_page} (404)")
+      return False
+    if status != 200:
+      raise Exception(f"Failed to download {web_page}, got status code {status}")
+
+    with open(self.path, "wb") as f:
+      f.write(content)
+    return True
 
   def __str__(self):
-    return f"Data({self.year}/{self.month}, {self.path}"
+    return f"{type(self).__name__}({self.year}/{self.month}, {self.path}"
 
   def extract(self):
-    extractor = bs4.BeautifulSoup(open(self.path, encoding="utf8"), "html.parser")
-
     all_data = []
-    for table in extractor.find_all('table'):
+    for table in self.rawTables():
       try :
-        all_data.extend(self._ExtractTableData(table))
+        all_data.extend(self.tableToEntries(table))
       except Exception as e :
-        print(f"Failed to extract data from table:\n{table}")
+        print(f"Failed to extract data from table:\n{table.debug}")
         raise e
 
     for data in all_data:
@@ -252,60 +254,25 @@ class Data:
 
     return all_data
 
-  def _ExtractTableData(self, table):
-    # Find the type of the table
+  def tableToEntries(self, table: RawTable) -> list[DataEntry]:
     ret = []
-    container = table.find_parent('div', **{'class': 'section'})
-    section_header = container.find_previous_sibling('div', **{'class': 'section'})
 
-    final_action_date = False
-    if section_header is not None:
-      section_header_text = section_header.get_text().lower()
-      if "final action dates" in section_header_text:
-        final_action_date = True
+    visa_type_header = table.headers[0]
+    all_countries = [CountryCategory.get(x) for x in table.headers[1:]]
 
-    if _IsSkippableTable(table):
-      return []
-
-    all_rows = table.find_all('tr')
-    data_start_row = 1
-
-    if (self.year < 2003) or ((self.year == 2003) and (self.month <= 9)) \
-        or (self.year == 2005 and self.month == 11) or \
-        (self.year == 2007 and self.month == 2 and all_rows[0].find_all('td')[0].get_text().strip() == ''):
-      # 2007 has one odd table with extra space.
-      if len(all_rows) < 2:
-        # More weird tables
-        return []
-
-      first_row = all_rows[0].find_all(['th', 'td'])
-      second_row = all_rows[1].find_all(['th', 'td'])
-      headers = [second_row[0]] + first_row[1:]
-      data_start_row = 2
-
-    else :
-      if (self.year == 2004 and self.month in [2, 3, 4]) :
-        # Weird extra row in table
-        all_rows = all_rows[1:]
-      headers = all_rows[0].find_all(['th', 'td'])
-
-    visa_type_header = headers[0].get_text()
-    all_countries = [CountryCategory.get(x.get_text()) for x in headers[1:]]
-
-    for row in all_rows[data_start_row:]:
-      if row.get_text().lower().strip() == '':
+    for row in table.rows:
+      if ''.join(row).lower().strip() == '':
         # Weird empty row
         continue
 
-      all_entries = row.find_all(['td', 'th'])
-      visa_type = VisaCategory.get(all_entries[0].get_text(), visa_type_header)
+      visa_type = VisaCategory.get(row[0], visa_type_header)
 
-      for idx, entry in enumerate(all_entries[1:]):
+      for idx, entry in enumerate(row[1:]):
         country = all_countries[idx]
-        date_str = entry.get_text().strip()
-        date_val = self._ConvertPageDate(date_str)
+        date_val = self._ConvertPageDate(entry.strip())
         ret.append(DataEntry(year = self.year, month=self.month, country=country,
-                             visa_type=visa_type, is_final_action_date=final_action_date, date=date_val))
+                             visa_type=visa_type, is_final_action_date=table.is_final_action_date,
+                             date=date_val))
 
     return ret
 
@@ -350,73 +317,6 @@ class Data:
     return datetime.date(year=year, month=month, day=day)
 
 
-_TURNSTILE_HOST = "challenges.cloudflare.com"
-
-
-def _browserFetch(url: str, timeout_s: int = 90) -> tuple[int, str]:
-  """Fetch a Cloudflare-protected bulletin page with a real browser.
-
-  travel.state.gov now sits behind a Cloudflare "Verify you are human"
-  (Turnstile) challenge that a plain HTTP request cannot pass -- it returns a
-  403 challenge page regardless of headers or User-Agent. We drive a headed
-  Chromium (via patchright) and click the Turnstile checkbox to clear the
-  challenge. On a headless server run this under a virtual display, e.g.
-  `xvfb-run` (see update_data.sh); pure headless mode gets hard-blocked.
-
-  Returns (status, html): 200 with the page HTML on success, or 404 when the
-  bulletin does not exist yet (used with --ignore_404 to probe future months).
-  """
-  from patchright.sync_api import sync_playwright
-
-  with sync_playwright() as p:
-    browser = p.chromium.launch(headless=False, args=["--no-sandbox"])
-    try:
-      page = browser.new_context(
-          viewport={"width": 1000, "height": 800}, locale="en-US").new_page()
-
-      # Track the status of the main-document navigations for this URL. A
-      # missing bulletin resolves 307 -> 403 (challenge) -> 404 once cleared.
-      doc_status = {"code": None}
-      def _track(resp):
-        if resp.url.split("?")[0] == url and resp.request.resource_type == "document":
-          doc_status["code"] = resp.status
-      page.on("response", _track)
-
-      page.goto(url, wait_until="domcontentloaded", timeout=timeout_s * 1000)
-
-      deadline = time.time() + timeout_s
-      while time.time() < deadline:
-        title = page.title().lower()
-        html = page.content()
-
-        # Real bulletin page has loaded (challenge cleared, tables present).
-        if "just a moment" not in title and "<table" in html.lower():
-          return 200, html
-        # Bulletin does not exist (e.g. probing a not-yet-published month).
-        if doc_status["code"] == 404 or "page not found" in title:
-          return 404, html
-
-        # Click the Turnstile checkbox if the challenge is showing.
-        for frame in page.frames:
-          if _TURNSTILE_HOST in frame.url:
-            box = frame.query_selector("input[type=checkbox]")
-            if box is not None:
-              try:
-                box.click()
-              except Exception:
-                pass
-        time.sleep(1.5)
-
-      # Challenge never cleared within the timeout. Return the last document
-      # status (typically 403) so the caller can decide whether to fail or, with
-      # --ignore-fallback-failure, skip this page.
-      print(f"Timed out clearing Cloudflare challenge for {url} "
-            f"(last document status {doc_status['code']})")
-      return doc_status["code"] or 403, page.content()
-    finally:
-      browser.close()
-
-
 def _ValidateData(allData : list[DataEntry]):
   pass
 
@@ -427,74 +327,22 @@ def _SanitizeTextData(inpStr : str) -> str:
   return re.sub(r'[ \n\xc2\xa0]+', ' ', inpStr)
 
 
-def _IsSkippableTable(table) -> bool:
-  all_rows = table.find_all('tr')
+# Diversity visa tables share the page with the cut-off date tables we want but
+# are keyed by region rather than country, so every source has to drop them.
+_DV_ROW_NAMES = [
+  'dv chargeability areas',
+  'africa',
+  'asia',
+  'europe',
+  'north america',
+  'oceania',
+  'south america, central america, and the caribbean',
+]
 
-  if not all_rows :
-    return True
 
-  first_row_text = all_rows[0].get_text().lower()
-  for name in [
-    'dv chargeability areas',
-    'africa',
-    'asia',
-    'europe',
-    'north america',
-    'oceania',
-    'south america, central america, and the caribbean',
-  ] :
+def IsSkippableFirstRow(first_row_text: str) -> bool:
+  first_row_text = first_row_text.lower()
+  for name in _DV_ROW_NAMES:
     if name in first_row_text :
       return True
-
-  previous_paragraph = table.find_previous_sibling('p')
-  if previous_paragraph is None and all_rows[0].get_text().strip() == '':
-    # Mystery empty table.
-    return True
-
-  if previous_paragraph is not None:
-    previous_paragraph = previous_paragraph.get_text().lower().strip()
-    for name in [
-      'dv-2003',
-      'dv-2004',
-      'dv-2005',
-      'dv-2006',
-      'dv-2007',
-      'dv-2008',
-      'dv-2009',
-      'dv-2010',
-      'dv-2011',
-      'dv-2012',
-      'dv-2013',
-      'dv-2014',
-      'dv-2015',
-      'dv-2016',
-      'dv-2017',
-      'dv-2018',
-      'dv-2019',
-      'dv-2020',
-      'dv-2021',
-      'dv-2022',
-      'dv-2023',
-      'dv-2024',
-      'dv-2025',
-      'all dv chargeability areas',
-      'ina 202',
-      'possible cut-off date actions based on demand',
-      'worldwide dates:',
-      'employment third:',
-    ] :
-      if name in previous_paragraph:
-        return True
-
-    # Other ways to detect DV visa
-    for name in [
-      'africa',
-      'asia',
-      'europe',
-      'oceania',
-      'south america, central america, and the caribbean',
-      'north america \nbahamas, the 12',
-    ] :
-      if name == previous_paragraph:
-        return True
   return False

@@ -3,6 +3,8 @@ import pathlib
 
 import click
 
+from .HtmlSource import HtmlSource
+from .Http import BrowserFallbackFetcher, RequestsFetcher
 from .VisaProcessor import processDates
 
 _SupportedDateInputs = click.DateTime(formats=['%Y-%m', '%Y%m'])
@@ -54,9 +56,13 @@ def _main(cache_dir, data_dir, start_date = None, end_date = None, ignore_404 = 
     raise Exception("Start date must be at least 2001-12-December")
 
 
+  if fallback:
+    fetcher = BrowserFallbackFetcher(ignore_failure=ignore_fallback_failure)
+  else:
+    fetcher = RequestsFetcher()
+
   processDates(start_date=start_date, end_date=end_date, cache_dir=cache_dir, data_dir=data_dir,
-               ignore_404=ignore_404, fallback=fallback,
-               ignore_fallback_failure=ignore_fallback_failure)
+               source_cls=HtmlSource, fetcher=fetcher, ignore_404=ignore_404)
 
 if __name__ == '__main__':
     _main()

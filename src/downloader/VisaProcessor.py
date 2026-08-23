@@ -3,13 +3,14 @@ import datetime
 import pathlib
 import time
 
-from .Data import Data, DataEntry, VisaCategory, CountryCategory
+from .Data import MONTH_TO_STR, DataEntry, Source, VisaCategory, CountryCategory
+from .Http import Fetcher
 
 
 def processDates(*, start_date: datetime.date, end_date: datetime.date,
                  cache_dir: pathlib.Path, data_dir: pathlib.Path,
-                 ignore_404: bool = False, fallback: bool = False,
-                 ignore_fallback_failure: bool = False):
+                 source_cls: type[Source], fetcher: Fetcher,
+                 ignore_404: bool = False):
   # Figure out all the dates we need to process
   all_dates = []
   curr_date = datetime.date(year=start_date.year, month=start_date.month, day=1)
@@ -30,13 +31,12 @@ def processDates(*, start_date: datetime.date, end_date: datetime.date,
   for curr_date in all_dates:
     cache_year = cache_dir / curr_date.strftime("%Y")
     cache_year.mkdir(parents=True, exist_ok=True)
-    cache_file = cache_year / curr_date.strftime("%m_%B.html")
-    data = Data(curr_date, cache_file)
+    cache_file = cache_year / (curr_date.strftime("%m_%B") + source_cls.CACHE_SUFFIX)
+    data = source_cls(curr_date, cache_file)
     all_data.append(data)
 
   for data in all_data:
-    if data.download(ignore_404=ignore_404, fallback=fallback,
-                     ignore_fallback_failure=ignore_fallback_failure):
+    if data.download(fetcher, ignore_404=ignore_404):
       time.sleep(0.1)
 
   for data in all_data:
@@ -48,7 +48,7 @@ def processDates(*, start_date: datetime.date, end_date: datetime.date,
 
     yearDir = data_dir / f"{data.year}"
     yearDir.mkdir(parents=True, exist_ok=True)
-    filePath = yearDir / f"{data.month:02d}_{Data.MONTH_TO_STR[data.month]}.csv"
+    filePath = yearDir / f"{data.month:02d}_{MONTH_TO_STR[data.month]}.csv"
     with open(filePath, 'w', newline='') as csvfile:
       writer = csv.DictWriter(csvfile, delimiter=',', lineterminator='\n',
                               quotechar='|', quoting=csv.QUOTE_MINIMAL,
