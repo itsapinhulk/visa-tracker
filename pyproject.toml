@@ -7,4 +7,5 @@ dependencies = [
     "patchright",
     "beautifulsoup4",
     "click",
+    "curl-cffi",
 ]

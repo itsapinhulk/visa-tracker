@@ -4,7 +4,7 @@ import pathlib
 import click
 
 from .HtmlSource import HtmlSource
-from .Http import BrowserFallbackFetcher, RequestsFetcher
+from .Http import BrowserFetcher, ChainFetcher, ImpersonatingFetcher, RequestsFetcher
 from .VisaProcessor import processDates
 
 _SupportedDateInputs = click.DateTime(formats=['%Y-%m', '%Y%m'])
@@ -26,8 +26,8 @@ _SupportedDateInputs = click.DateTime(formats=['%Y-%m', '%Y%m'])
               help='On a 403 (Cloudflare challenge), retry via a real browser. '
                    'Requires patchright + a browser (see update_data.sh).')
 @click.option('--ignore-fallback-failure', is_flag=True, default=False,
-              help='If the browser fallback still gets a 403 (challenge not '
-                   'cleared), skip that page instead of failing the run.')
+              help='If no download method can retrieve a page, skip it instead '
+                   'of failing the run.')
 def _main(cache_dir, data_dir, start_date = None, end_date = None, ignore_404 = False,
           aggressive = False, fallback = False, ignore_fallback_failure = False):
   cache_dir = pathlib.Path(cache_dir).absolute()
@@ -56,10 +56,13 @@ def _main(cache_dir, data_dir, start_date = None, end_date = None, ignore_404 = 
     raise Exception("Start date must be at least 2001-12-December")
 
 
+  # Each method is tried in turn: travel.state.gov refuses a plain request but
+  # serves the same URL to a browser TLS fingerprint, and hides other pages
+  # behind a challenge only a real browser clears.
+  fetchers = [RequestsFetcher(), ImpersonatingFetcher()]
   if fallback:
-    fetcher = BrowserFallbackFetcher(ignore_failure=ignore_fallback_failure)
-  else:
-    fetcher = RequestsFetcher()
+    fetchers.append(BrowserFetcher())
+  fetcher = ChainFetcher(fetchers, ignore_failure=ignore_fallback_failure)
 
   processDates(start_date=start_date, end_date=end_date, cache_dir=cache_dir, data_dir=data_dir,
                source_cls=HtmlSource, fetcher=fetcher, ignore_404=ignore_404)

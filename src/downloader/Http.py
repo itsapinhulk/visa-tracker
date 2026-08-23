@@ -3,8 +3,14 @@ from __future__ import annotations
 import time
 
 import requests
+from curl_cffi import requests as curl_requests
 
 _TURNSTILE_HOST = "challenges.cloudflare.com"
+
+# Chrome build whose TLS fingerprint curl_cffi presents. travel.state.gov
+# bot-scores the raw fingerprint, so a plain `requests` GET is refused where an
+# identical request carrying a real browser's fingerprint is served.
+_IMPERSONATE = "chrome131"
 
 
 class Fetcher:
@@ -17,6 +23,9 @@ class Fetcher:
   def fetch(self, url: str) -> tuple[int | None, bytes]:
     """Retrieve url. Returns (status, content).
 
+    Every fetcher returns the document as the raw bytes it was served as, so
+    which one retrieved a URL never changes what gets cached.
+
     A status of None means the fetcher decided this URL should be skipped
     rather than treated as a failure; the caller reports it as not downloaded
     instead of raising.
@@ -28,36 +37,72 @@ class RequestsFetcher(Fetcher):
   """A plain HTTP GET."""
 
   def fetch(self, url: str) -> tuple[int | None, bytes]:
+    print(f"Downloading {url} with a plain HTTP request")
     resp = requests.get(url)
-    return resp.status_code, resp.text.encode("utf-8")
+    return resp.status_code, resp.content
 
 
-class BrowserFallbackFetcher(Fetcher):
-  """A plain GET, falling back to a real browser on a Cloudflare challenge.
+class ImpersonatingFetcher(Fetcher):
+  """A GET carrying a real browser's TLS fingerprint.
 
-  travel.state.gov hides pages behind a Cloudflare "Verify you are human"
-  (Turnstile) challenge, which answers a plain request with 403. The browser
-  clears it; see browserFetch.
+  Enough to get past bot scoring that refuses a plain request, but not enough
+  to pass an interactive Cloudflare challenge -- that needs BrowserFetcher.
   """
 
-  def __init__(self, ignore_failure: bool = False):
-    # The browser may still fail to clear the challenge (e.g. from a flagged
-    # datacenter IP). With ignore_failure, skip instead of failing the whole
-    # run so any pages that did succeed still go through.
+  def fetch(self, url: str) -> tuple[int | None, bytes]:
+    print(f"Downloading {url} with a {_IMPERSONATE} TLS fingerprint")
+    resp = curl_requests.get(url, impersonate=_IMPERSONATE)
+    return resp.status_code, resp.content
+
+
+class BrowserFetcher(Fetcher):
+  """A GET driven through a real browser, clearing a Cloudflare challenge.
+
+  The browser hands back a parsed document rather than the bytes off the wire,
+  so this is the one method that re-serializes; travel.state.gov serves UTF-8,
+  which is what the other fetchers come back with too.
+  """
+
+  def fetch(self, url: str) -> tuple[int | None, bytes]:
+    status, html = browserFetch(url)
+    return status, html.encode("utf-8")
+
+
+class ChainFetcher(Fetcher):
+  """Try each fetcher in turn until one of them gets the document.
+
+  travel.state.gov answers differently depending on how it is asked, so a
+  refusal from one method says nothing about the next. A 404 is taken as the
+  site's final word and stops the chain; anything else that failed just moves
+  on to the next method.
+  """
+
+  def __init__(self, fetchers: list[Fetcher], ignore_failure: bool = False):
+    # Every method may still be refused (e.g. from a flagged datacenter IP).
+    # With ignore_failure, skip instead of failing the whole run so any pages
+    # that did succeed still go through.
+    self.fetchers = fetchers
     self.ignore_failure = ignore_failure
 
   def fetch(self, url: str) -> tuple[int | None, bytes]:
-    status, content = RequestsFetcher().fetch(url)
-    if status != 403:
-      return status, content
+    status, content = None, b""
 
-    print(f"Got 403 for {url}; retrying with browser fallback")
-    status, html = browserFetch(url)
-    if status == 403 and self.ignore_failure:
-      print(f"Skipping {url} (browser fallback could not clear the challenge)")
+    for index, fetcher in enumerate(self.fetchers):
+      status, content = fetcher.fetch(url)
+
+      if status == 200 or status == 404:
+        return status, content
+
+      if index + 1 < len(self.fetchers):
+        print(f"Got {status} for {url}, retrying")
+      else:
+        print(f"Got {status} for {url}")
+
+    if self.ignore_failure:
+      print(f"Skipping {url} (no download method could retrieve it)")
       return None, b""
 
-    return status, html.encode("utf-8")
+    return status, content
 
 
 def browserFetch(url: str, timeout_s: int = 90) -> tuple[int, str]:
@@ -73,6 +118,8 @@ def browserFetch(url: str, timeout_s: int = 90) -> tuple[int, str]:
   Returns (status, html): 200 with the page HTML on success, or 404 when the
   page does not exist (used with --ignore_404 to probe future months).
   """
+  print(f"Downloading {url} with a headed browser")
+
   from patchright.sync_api import sync_playwright
 
   with sync_playwright() as p:

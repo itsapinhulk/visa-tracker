@@ -221,7 +221,6 @@ class Source:
       print(f"Skipping download {web_page}")
       return False
 
-    print(f"Downloading {web_page}")
     status, content = fetcher.fetch(web_page)
 
     if status is None:
