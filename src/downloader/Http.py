@@ -8,10 +8,15 @@ from curl_cffi import requests as curl_requests
 
 _TURNSTILE_HOST = "challenges.cloudflare.com"
 
-# Chrome build whose TLS fingerprint curl_cffi presents. travel.state.gov
-# bot-scores the raw fingerprint, so a plain `requests` GET is refused where an
-# identical request carrying a real browser's fingerprint is served.
-_IMPERSONATE = "chrome131"
+# Browser TLS fingerprints curl_cffi can present, tried in this order.
+# travel.state.gov bot-scores the raw fingerprint, so a plain `requests` GET is
+# refused where an identical request carrying a browser's fingerprint is served.
+# Which fingerprints it accepts depends on where the request comes from: as of
+# August 2026 the newest Chrome profiles are refused outright from GitHub
+# Actions runners -- a flat 403, not a challenge -- while these are served both
+# from there and from a workstation. More than one is kept so that a profile
+# falling out of favour degrades into a retry rather than a dead pipeline.
+IMPERSONATIONS = ["chrome110", "safari184"]
 
 # Smallest gap between two requests, whichever method makes them. Paces every
 # request rather than every month: one month can take several attempts.
@@ -71,10 +76,13 @@ class ImpersonatingFetcher(Fetcher):
   to pass an interactive Cloudflare challenge -- that needs BrowserFetcher.
   """
 
+  def __init__(self, impersonation: str = IMPERSONATIONS[0]):
+    self.impersonation = impersonation
+
   def fetch(self, url: str) -> Fetched:
-    print(f"Downloading {url} with a {_IMPERSONATE} TLS fingerprint")
+    print(f"Downloading {url} with a {self.impersonation} TLS fingerprint")
     _pace()
-    resp = curl_requests.get(url, impersonate=_IMPERSONATE)
+    resp = curl_requests.get(url, impersonate=self.impersonation)
     return Fetched(resp.status_code, resp.content)
 
 
@@ -106,7 +114,15 @@ class ChainFetcher(Fetcher):
     fetched = Fetched(None, b"")
 
     for index, fetcher in enumerate(self.fetchers):
-      fetched = fetcher.fetch(url)
+      try:
+        fetched = fetcher.fetch(url)
+      except Exception as error:
+        # A method that breaks is just a method that did not work: the browser
+        # failing to start should not stop the methods after it from being
+        # tried, nor the other form of the same bulletin.
+        print(f"{type(fetcher).__name__} failed for {url}: "
+              f"{type(error).__name__}: {str(error).splitlines()[0][:100]}")
+        fetched = Fetched(None, b"")
 
       if fetched.status == 200 or fetched.status == 404:
         return fetched

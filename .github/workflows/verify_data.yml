@@ -1,0 +1,44 @@
+name: Verify Data
+
+# Run by hand: checks the stored CSVs still match what each source produces.
+# Not on a schedule -- it downloads every source for every month it checks,
+# where the daily update only downloads what it needs.
+on:
+  workflow_dispatch:
+    inputs:
+      start_date:
+        description: First month to check, YYYY-MM (blank checks the last 3)
+        required: false
+        default: ""
+      end_date:
+        description: Last month to check, YYYY-MM (blank runs to the latest)
+        required: false
+        default: ""
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: astral-sh/setup-uv@v8.0.0
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      # --fallback clears the Cloudflare challenge on the HTML pages with a real
+      # Chromium, which needs the browser + its system libraries (install-deps
+      # also pulls in xvfb for the headless runner). Without it the HTML source
+      # cannot be checked from a runner at all.
+      - name: Install browser for Cloudflare fallback
+        run: uv run --frozen patchright install-deps chromium
+
+      - name: Verify
+        run: |
+          mkdir -p ./cache
+          ARGS=(--fallback)
+          [ -n "${{ inputs.start_date }}" ] && ARGS+=(--start_date "${{ inputs.start_date }}")
+          [ -n "${{ inputs.end_date }}" ] && ARGS+=(--end_date "${{ inputs.end_date }}")
+          ./verify_data.sh "${ARGS[@]}" | tee -a "$GITHUB_STEP_SUMMARY"

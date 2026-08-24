@@ -16,7 +16,7 @@ import click
 
 from .Data import MONTH_TO_STR, Source
 from .HtmlSource import HtmlSource
-from .Http import BrowserFetcher, ChainFetcher, ImpersonatingFetcher, RequestsFetcher
+from .Http import IMPERSONATIONS, BrowserFetcher, ChainFetcher, ImpersonatingFetcher, RequestsFetcher
 from .PdfSource import PdfSource
 from .VisaProcessor import _convertToCsv
 
@@ -236,7 +236,8 @@ def _main(cache_dir, data_dir, start_date=None, end_date=None, source_names=(),
   if not months:
     raise click.UsageError(f"No stored CSVs to check in {data_dir}")
 
-  fetchers = [RequestsFetcher(), ImpersonatingFetcher()]
+  fetchers = [RequestsFetcher()]
+  fetchers += [ImpersonatingFetcher(name) for name in IMPERSONATIONS]
   if fallback:
     fetchers.append(BrowserFetcher())
   # Nothing is ignored here: a source that cannot be downloaded is a failure,

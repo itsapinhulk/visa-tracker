@@ -4,7 +4,7 @@ import pathlib
 import click
 
 from .HtmlSource import HtmlSource
-from .Http import BrowserFetcher, ChainFetcher, ImpersonatingFetcher, RequestsFetcher
+from .Http import IMPERSONATIONS, BrowserFetcher, ChainFetcher, ImpersonatingFetcher, RequestsFetcher
 from .PdfSource import PdfSource
 from .VisaProcessor import processDates
 
@@ -77,7 +77,8 @@ def _main(cache_dir, data_dir, start_date = None, end_date = None, ignore_404 = 
   # Each method is tried in turn: travel.state.gov refuses a plain request but
   # serves the same URL to a browser TLS fingerprint, and hides other pages
   # behind a challenge only a real browser clears.
-  fetchers = [RequestsFetcher(), ImpersonatingFetcher()]
+  fetchers = [RequestsFetcher()]
+  fetchers += [ImpersonatingFetcher(name) for name in IMPERSONATIONS]
   if fallback:
     fetchers.append(BrowserFetcher())
   fetcher = ChainFetcher(fetchers, ignore_failure=ignore_fallback_failure)
