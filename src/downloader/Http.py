@@ -18,10 +18,10 @@ _TURNSTILE_HOST = "challenges.cloudflare.com"
 # refused where an identical request carrying a browser's fingerprint is served.
 # Which fingerprints it accepts depends on where the request comes from: as of
 # August 2026 the newest Chrome profiles are refused outright from GitHub
-# Actions runners -- a flat 403, not a challenge -- while these are served both
-# from there and from a workstation. More than one is kept so that a profile
-# falling out of favour degrades into a retry rather than a dead pipeline.
-IMPERSONATIONS = ["chrome110", "safari184"]
+# Actions runners -- a flat 403, not a challenge -- while this one is served
+# both from there and from a workstation. Adding another here is what to reach
+# for if this one stops being served.
+IMPERSONATIONS = ["chrome110"]
 
 # Smallest gap between two requests, whichever method makes them. Paces every
 # request rather than every month: one month can take several attempts.
