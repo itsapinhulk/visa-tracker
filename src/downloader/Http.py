@@ -1,6 +1,11 @@
 from __future__ import annotations
 
+import atexit
 import dataclasses
+import os
+import pathlib
+import shutil
+import subprocess
 import time
 
 import requests
@@ -139,6 +144,73 @@ class ChainFetcher(Fetcher):
     return fetched
 
 
+# Where a virtual X server is put when one has to be started.
+_DISPLAY = ":99"
+_DISPLAY_READY_S = 5
+
+
+# The virtual display this run started, if it had to start one. One serves
+# every browser launch of the run; a bulletin fetched later reuses it.
+_display_server = None
+_display_warned = False
+
+
+def _ensureDisplay():
+  """Start a virtual X server, once, the first time a browser needs one.
+
+  The Cloudflare challenge only clears in headed mode, so on a machine with no
+  display one has to be conjured. Starting it here rather than wrapping the
+  whole run in xvfb-run means a run that never reaches the browser -- every run
+  where the PDF is served, which is most of them -- never starts one at all.
+  """
+  global _display_server, _display_warned
+
+  if _display_server is not None:
+    return
+  if os.environ.get('DISPLAY'):
+    return
+
+  if not shutil.which('Xvfb'):
+    # Not fatal: the browser will fail to launch, that failure is caught, and
+    # the run carries on to the other methods and the other form of the
+    # bulletin. Say so plainly, because the error it fails with does not.
+    if not _display_warned:
+      print("No display, and no Xvfb to start one: the browser cannot launch. "
+            "Install xvfb, or run somewhere with a display.")
+      _display_warned = True
+    return
+
+  print(f"Starting a virtual display on {_DISPLAY} for the browser")
+  _display_server = subprocess.Popen(
+      ['Xvfb', _DISPLAY, '-screen', '0', '1280x1024x24'],
+      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+  atexit.register(_stopDisplay)
+
+  socket = pathlib.Path(f"/tmp/.X11-unix/X{_DISPLAY.lstrip(':')}")
+  deadline = time.time() + _DISPLAY_READY_S
+  while not socket.exists() and time.time() < deadline:
+    if _display_server.poll() is not None:
+      raise Exception(f"Virtual display exited with {_display_server.returncode}")
+    time.sleep(0.1)
+
+  os.environ['DISPLAY'] = _DISPLAY
+
+
+def _stopDisplay():
+  global _display_server
+
+  if _display_server is None:
+    return
+
+  os.environ.pop('DISPLAY', None)
+  _display_server.terminate()
+  try:
+    _display_server.wait(timeout=10)
+  except subprocess.TimeoutExpired:
+    _display_server.kill()
+  _display_server = None
+
+
 def browserFetch(url: str, timeout_s: int = 90) -> Fetched:
   """Fetch a Cloudflare-protected page with a real browser.
 
@@ -158,6 +230,8 @@ def browserFetch(url: str, timeout_s: int = 90) -> Fetched:
   print(f"Downloading {url} with a headed browser")
 
   from patchright.sync_api import sync_playwright
+
+  _ensureDisplay()
 
   with sync_playwright() as p:
     browser = p.chromium.launch(headless=False, args=["--no-sandbox"])

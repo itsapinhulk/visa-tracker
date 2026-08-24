@@ -256,6 +256,7 @@ class Source:
     if fetched.status == 200:
       with open(self.path, "wb") as f:
         f.write(fetched.content)
+      print(f"Saved {self.path} ({len(fetched.content)} bytes)")
 
     return fetched.status
 

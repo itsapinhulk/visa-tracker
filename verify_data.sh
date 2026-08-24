@@ -11,18 +11,14 @@ cd ${SCRIPT_DIR}
 # update_data.sh so neither re-downloads what the other already has.
 # --fallback drives a real browser for the Cloudflare challenge on the HTML
 # pages, exactly as update_data.sh does.
-PREFIX=()
 if [[ " $* " == *" --fallback "* ]]; then
   uv run --frozen patchright install chromium
-  if [ -z "${DISPLAY:-}" ] && command -v xvfb-run >/dev/null 2>&1; then
-    PREFIX=(xvfb-run -a)
-  fi
 fi
 
 mkdir -p ./cache
 
 (
   set -x
-  "${PREFIX[@]}" uv run --frozen python -m src.downloader.verify \
+  uv run --frozen python -m src.downloader.verify \
     --cache_dir ./cache --data_dir ./data "$@"
 )
