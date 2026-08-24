@@ -252,12 +252,12 @@ class Source:
     downloading at all, and what a failure means -- give up, or reach for
     another source -- is the caller's call.
     """
-    status, content = fetcher.fetch(self.url())
-    if status == 200:
+    fetched = fetcher.fetch(self.url())
+    if fetched.status == 200:
       with open(self.path, "wb") as f:
-        f.write(content)
+        f.write(fetched.content)
 
-    return status
+    return fetched.status
 
   def __str__(self):
     return f"{type(self).__name__}({self.year}/{self.month}, {self.path}"

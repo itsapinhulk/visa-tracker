@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 import re
 
 import pdfplumber
@@ -87,9 +88,9 @@ class PdfSource(Source):
             lead, rest = block.lines[:first], block.lines[first:]
 
             if chart is None:
-              chart, started, lead = _startChart(columns, preceding, lead,
-                                                 final_action_date, tables)
-              if started:
+              opened = _startChart(columns, preceding, lead, final_action_date, tables)
+              chart, lead = opened.chart, opened.label
+              if opened.started:
                 tables.append(chart)
             else:
               lead = [line for line in lead if _inGutter(columns, line)]
@@ -240,9 +241,19 @@ def _blocks(page) -> list[_Block]:
   return blocks
 
 
-def _ruledRows(page) -> list[tuple[float, float]]:
+@dataclasses.dataclass
+class _Band:
+  """The span of the page one ruled cell covers, top to bottom."""
+  top: float
+  bottom: float
+
+  def holds(self, line) -> bool:
+    return self.top <= line.top < self.bottom
+
+
+def _ruledRows(page) -> list[_Band]:
   """The bands a page's ruled cells divide it into, top to bottom."""
-  return [(row.bbox[1], row.bbox[3])
+  return [_Band(top=row.bbox[1], bottom=row.bbox[3])
           for table in page.find_tables() for row in table.rows]
 
 
@@ -264,8 +275,8 @@ def _owners(lines, data, ruled) -> dict:
   # from nowhere else, which keeps the letterhead at the top of a page out of
   # the first row beneath it.
   ruled_rows = {}
-  for top, bottom in ruled:
-    inside = [index for index, line in enumerate(lines) if top <= line.top < bottom]
+  for band in ruled:
+    inside = [index for index, line in enumerate(lines) if band.holds(line)]
     within = [index for index in inside if index in rows]
     if len(within) != 1:
       continue
@@ -379,7 +390,19 @@ def _inGutter(columns, line) -> bool:
   return all(columns.of(word) is None for word in line.words)
 
 
-def _startChart(columns, preceding, lead, final_action_date, tables):
+@dataclasses.dataclass
+class _Opened:
+  """The chart a row belongs to, and what of its lines were not headings.
+
+  started is False when the row turned out to belong to a chart already under
+  way, which the caller must not record twice.
+  """
+  chart: '_Chart'
+  started: bool
+  label: list
+
+
+def _startChart(columns, preceding, lead, final_action_date, tables) -> _Opened:
   """Find the chart these dates belong to.
 
   The lines above the first row run from body text through the column headings
@@ -388,9 +411,6 @@ def _startChart(columns, preceding, lead, final_action_date, tables):
   are taken to be whatever run of those lines reads as a heading, and whatever
   is left under them opens the first row's label.
 
-  Returns (chart, started, label_lines); started is False when the rows turned
-  out to belong to a chart already under way, which the caller must not record
-  twice.
   """
   headers = None
   label = []
@@ -405,13 +425,14 @@ def _startChart(columns, preceding, lead, final_action_date, tables):
     # Nothing above these dates names their columns: the tail of a chart broken
     # over a page break, so carry on with the one it was split from.
     if tables and len(tables[-1].headers) == len(columns) + 1:
-      return tables[-1], False, [line for line in lead if _inGutter(columns, line)]
+      return _Opened(chart=tables[-1], started=False,
+                     label=[line for line in lead if _inGutter(columns, line)])
     headers = []
 
   chart = _Chart(columns=columns, headers=headers, rows=[],
                  is_final_action_date=final_action_date,
                  debug="\n".join(line.text for line in preceding))
-  return chart, True, label
+  return _Opened(chart=chart, started=True, label=label)
 
 
 def _readHeaders(columns, preceding, headings) -> list[str] | None:

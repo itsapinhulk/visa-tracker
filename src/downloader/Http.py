@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 import time
 
 import requests
@@ -28,6 +29,19 @@ def _pace():
   _last_request = time.monotonic()
 
 
+@dataclasses.dataclass
+class Fetched:
+  """What came back from asking for a URL.
+
+  status is None when the fetcher decided the URL should be skipped rather than
+  treated as a failure; the caller reports it as not downloaded instead of
+  raising. content is the document as the raw bytes it was served as, so which
+  fetcher retrieved a URL never changes what gets cached.
+  """
+  status: int | None
+  content: bytes
+
+
 class Fetcher:
   """How to pull a URL down off the wire.
 
@@ -35,27 +49,19 @@ class Fetcher:
   the same way -- so sources say *what* to fetch and a Fetcher says *how*.
   """
 
-  def fetch(self, url: str) -> tuple[int | None, bytes]:
-    """Retrieve url. Returns (status, content).
-
-    Every fetcher returns the document as the raw bytes it was served as, so
-    which one retrieved a URL never changes what gets cached.
-
-    A status of None means the fetcher decided this URL should be skipped
-    rather than treated as a failure; the caller reports it as not downloaded
-    instead of raising.
-    """
+  def fetch(self, url: str) -> Fetched:
+    """Retrieve url."""
     raise NotImplementedError
 
 
 class RequestsFetcher(Fetcher):
   """A plain HTTP GET."""
 
-  def fetch(self, url: str) -> tuple[int | None, bytes]:
+  def fetch(self, url: str) -> Fetched:
     print(f"Downloading {url} with a plain HTTP request")
     _pace()
     resp = requests.get(url)
-    return resp.status_code, resp.content
+    return Fetched(resp.status_code, resp.content)
 
 
 class ImpersonatingFetcher(Fetcher):
@@ -65,25 +71,19 @@ class ImpersonatingFetcher(Fetcher):
   to pass an interactive Cloudflare challenge -- that needs BrowserFetcher.
   """
 
-  def fetch(self, url: str) -> tuple[int | None, bytes]:
+  def fetch(self, url: str) -> Fetched:
     print(f"Downloading {url} with a {_IMPERSONATE} TLS fingerprint")
     _pace()
     resp = curl_requests.get(url, impersonate=_IMPERSONATE)
-    return resp.status_code, resp.content
+    return Fetched(resp.status_code, resp.content)
 
 
 class BrowserFetcher(Fetcher):
-  """A GET driven through a real browser, clearing a Cloudflare challenge.
+  """A GET driven through a real browser, clearing a Cloudflare challenge."""
 
-  The browser hands back a parsed document rather than the bytes off the wire,
-  so this is the one method that re-serializes; travel.state.gov serves UTF-8,
-  which is what the other fetchers come back with too.
-  """
-
-  def fetch(self, url: str) -> tuple[int | None, bytes]:
+  def fetch(self, url: str) -> Fetched:
     _pace()
-    status, html = browserFetch(url)
-    return status, html.encode("utf-8")
+    return browserFetch(url)
 
 
 class ChainFetcher(Fetcher):
@@ -102,28 +102,28 @@ class ChainFetcher(Fetcher):
     self.fetchers = fetchers
     self.ignore_failure = ignore_failure
 
-  def fetch(self, url: str) -> tuple[int | None, bytes]:
-    status, content = None, b""
+  def fetch(self, url: str) -> Fetched:
+    fetched = Fetched(None, b"")
 
     for index, fetcher in enumerate(self.fetchers):
-      status, content = fetcher.fetch(url)
+      fetched = fetcher.fetch(url)
 
-      if status == 200 or status == 404:
-        return status, content
+      if fetched.status == 200 or fetched.status == 404:
+        return fetched
 
       if index + 1 < len(self.fetchers):
-        print(f"Got {status} for {url}, retrying")
+        print(f"Got {fetched.status} for {url}, retrying")
       else:
-        print(f"Got {status} for {url}")
+        print(f"Got {fetched.status} for {url}")
 
     if self.ignore_failure:
       print(f"Skipping {url} (no download method could retrieve it)")
-      return None, b""
+      return Fetched(None, b"")
 
-    return status, content
+    return fetched
 
 
-def browserFetch(url: str, timeout_s: int = 90) -> tuple[int, str]:
+def browserFetch(url: str, timeout_s: int = 90) -> Fetched:
   """Fetch a Cloudflare-protected page with a real browser.
 
   travel.state.gov sits behind a Cloudflare "Verify you are human" (Turnstile)
@@ -133,8 +133,11 @@ def browserFetch(url: str, timeout_s: int = 90) -> tuple[int, str]:
   headless server run this under a virtual display, e.g. `xvfb-run` (see
   update_data.sh); pure headless mode gets hard-blocked.
 
-  Returns (status, html): 200 with the page HTML on success, or 404 when the
-  page does not exist (used with --ignore_404 to probe future months).
+  Comes back 200 with the page on success, or 404 when the page does not exist
+  (used with --ignore_404 to probe future months). The browser hands back a
+  parsed document rather than the bytes off the wire, so this is the one method
+  that re-serializes; travel.state.gov serves UTF-8, which is what the other
+  fetchers come back with too.
   """
   print(f"Downloading {url} with a headed browser")
 
@@ -163,10 +166,10 @@ def browserFetch(url: str, timeout_s: int = 90) -> tuple[int, str]:
 
         # Real page has loaded (challenge cleared, tables present).
         if "just a moment" not in title and "<table" in html.lower():
-          return 200, html
+          return Fetched(200, html.encode("utf-8"))
         # Page does not exist (e.g. probing a not-yet-published month).
         if doc_status["code"] == 404 or "page not found" in title:
-          return 404, html
+          return Fetched(404, html.encode("utf-8"))
 
         # Click the Turnstile checkbox if the challenge is showing.
         for frame in page.frames:
@@ -183,6 +186,6 @@ def browserFetch(url: str, timeout_s: int = 90) -> tuple[int, str]:
       # status (typically 403) so the caller can decide whether to fail or skip.
       print(f"Timed out clearing Cloudflare challenge for {url} "
             f"(last document status {doc_status['code']})")
-      return doc_status["code"] or 403, page.content()
+      return Fetched(doc_status["code"] or 403, page.content().encode("utf-8"))
     finally:
       browser.close()
