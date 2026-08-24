@@ -4,6 +4,7 @@ import atexit
 import dataclasses
 import os
 import pathlib
+import random
 import shutil
 import subprocess
 import time
@@ -23,17 +24,20 @@ _TURNSTILE_HOST = "challenges.cloudflare.com"
 # for if this one stops being served.
 IMPERSONATIONS = ["chrome110"]
 
-# Smallest gap between two requests, whichever method makes them. Paces every
-# request rather than every month: one month can take several attempts.
-_REQUEST_INTERVAL_S = 0.1
+# Gap to leave between two requests, whichever method makes them. Paces every
+# request rather than every month, since one month can take several attempts,
+# and varies so the run does not arrive on a metronome.
+_MIN_REQUEST_INTERVAL_S = 0.1
+_MAX_REQUEST_INTERVAL_S = 0.3
 _last_request = 0.0
 
 
 def _pace():
-  """Hold off until _REQUEST_INTERVAL_S has passed since the last request."""
+  """Hold off a little since the last request, however it was made."""
   global _last_request
 
-  wait = _last_request + _REQUEST_INTERVAL_S - time.monotonic()
+  interval = random.uniform(_MIN_REQUEST_INTERVAL_S, _MAX_REQUEST_INTERVAL_S)
+  wait = _last_request + interval - time.monotonic()
   if wait > 0:
     time.sleep(wait)
   _last_request = time.monotonic()
