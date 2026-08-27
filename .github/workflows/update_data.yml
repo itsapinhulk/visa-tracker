@@ -1,8 +1,8 @@
 name: Update Data
 
 on:
-  schedule: # Run every day at fixed time
-    - cron: "13 16 * * *"
+  schedule: # Run every day at fixed times
+    - cron: "31 7,11,13,17,21 * * *"
   push:
     branches:
       - main
